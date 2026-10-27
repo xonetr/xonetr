@@ -1,5 +1,14 @@
-import { StrictMode } from "react";
+import {lazy,StrictMode,Suspense} from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import {ContentProvider} from "./content/ContentProvider";
 import "./styles.css";
-createRoot(document.getElementById("root")!).render(<StrictMode><App /></StrictMode>);
+
+const isAdminRoute=window.location.pathname.startsWith("/admin");
+const AdminApp=lazy(()=>import("./admin/AdminApp"));
+if(isAdminRoute){
+  const robots=document.querySelector<HTMLMetaElement>('meta[name="robots"]')??document.head.appendChild(document.createElement("meta"));
+  robots.name="robots";robots.content="noindex, nofollow";
+}
+
+createRoot(document.getElementById("root")!).render(<StrictMode>{isAdminRoute?<Suspense fallback={<div className="admin-boot">Cargando panel…</div>}><AdminApp/></Suspense>:<ContentProvider><App/></ContentProvider>}</StrictMode>);

@@ -1,0 +1,30 @@
+import {useEffect,useState,type MouseEvent} from "react";
+import {Link,NavLink,Outlet,useLocation,useNavigate} from "react-router-dom";
+import {useAdminAuth} from "./AuthContext";
+import {useAdminContent} from "./AdminContentContext";
+import {editableSections,resolveAdminTitle,utilityNavigation} from "./adminConfig";
+import {AdminIcon} from "./components/AdminIcon";
+import {ConfirmDialog} from "./components/ConfirmDialog";
+import {Toast} from "./components/Toast";
+
+export function AdminLayout(){
+  const location=useLocation();const navigate=useNavigate();const {session,logout}=useAdminAuth();const {unsavedSections,changedSections,saveDraft,publish,discardDraft}=useAdminContent();
+  const [collapsed,setCollapsed]=useState(false);const [mobileOpen,setMobileOpen]=useState(false);const [dialog,setDialog]=useState<"publish"|"discard"|null>(null);const [toast,setToast]=useState("");const title=resolveAdminTitle(location.pathname);
+  useEffect(()=>{const warning=(event:BeforeUnloadEvent)=>{if(unsavedSections.length){event.preventDefault();event.returnValue=""}};window.addEventListener("beforeunload",warning);return()=>window.removeEventListener("beforeunload",warning)},[unsavedSections]);
+  useEffect(()=>{setMobileOpen(false)},[location.pathname]);
+  useEffect(()=>{if(!toast)return;const timer=window.setTimeout(()=>setToast(""),3200);return()=>window.clearTimeout(timer)},[toast]);
+  const guard=(event:MouseEvent)=>{if(unsavedSections.length&&!window.confirm("Hay cambios sin guardar. ¿Quieres salir de esta pantalla?"))event.preventDefault()};
+  const hasNavChanges=(section?:string)=>section?changedSections.includes(section as never)||(section==="footer"&&changedSections.includes("legal"))||(section==="settings"&&changedSections.includes("navigation")):false;
+  const nav=(item:{label:string;to:string;icon:string;section?:string})=><NavLink key={item.to} to={item.to} onClick={guard} end={item.to==="/admin"} title={collapsed?item.label:undefined}><AdminIcon name={item.icon}/><span>{item.label}</span>{hasNavChanges(item.section)&&<i className="admin-nav-dot" aria-label="Con cambios sin publicar"/>}</NavLink>;
+  const doSave=async()=>{try{await saveDraft();setToast("Borrador guardado en este navegador.")}catch{setToast("Revisa los campos marcados antes de guardar.")}};
+  const doDiscard=async()=>{try{await discardDraft();setDialog(null);setToast("Cambios descartados.")}catch{setToast("No se pudieron descartar los cambios.")}};
+  const doPublish=async()=>{try{await publish();setDialog(null);setToast("Contenido publicado localmente.")}catch{setToast("Revisa los campos marcados antes de publicar.")}};
+  const publishSections=changedSections.map(section=>section==="legal"?"Textos legales":section==="navigation"?"Navegación":editableSections.find(item=>item.section===section)?.label??section).join(", ");
+  return <div className={`admin-shell ${collapsed?"is-collapsed":""}`}>
+    <div className={`admin-sidebar-overlay ${mobileOpen?"is-open":""}`} onMouseDown={event=>{if(event.target===event.currentTarget)setMobileOpen(false)}}><aside className="admin-sidebar" aria-label="Navegación del panel"><div className="admin-sidebar__brand"><Link to="/admin" aria-label="Resumen del panel"><img src="/assets/xonetr-logo.png" width="42" height="42" alt=""/><span>XONETR</span></Link><button type="button" aria-label={collapsed?"Expandir barra lateral":"Contraer barra lateral"} onClick={()=>setCollapsed(value=>!value)}>‹</button></div><nav><div>{nav({label:"Resumen",to:"/admin",icon:"summary"})}</div><p>Contenido</p><div>{editableSections.map(nav)}</div><p>Herramientas</p><div>{utilityNavigation.map(nav)}</div></nav><div className="admin-sidebar__demo"><i aria-hidden="true"/><span>Modo demostración: los cambios se guardan solo en este navegador.</span></div></aside></div>
+    <div className="admin-workspace"><header className="admin-topbar"><div className="admin-topbar__title"><button className="admin-mobile-menu" type="button" aria-label="Abrir navegación" onClick={()=>setMobileOpen(true)}><AdminIcon name="menu"/></button><div><p className="admin-kicker">// PANEL</p><h1>{title}</h1></div><span className={`admin-status-pill ${changedSections.length?"has-changes":""}`}>{changedSections.length?"Borrador con cambios":"Todo publicado"}</span></div><div className="admin-topbar__actions"><a className="admin-button admin-button--ghost" href="/" target="_blank" rel="noreferrer">Ver sitio ↗</a><button className="admin-button admin-button--ghost" type="button" disabled={!changedSections.length&&!unsavedSections.length} onClick={()=>setDialog("discard")}>Descartar cambios</button><button className="admin-button admin-button--secondary" type="button" disabled={!unsavedSections.length} onClick={()=>void doSave()}>Guardar borrador</button><button className="admin-button admin-button--primary" type="button" disabled={!changedSections.length&&!unsavedSections.length} onClick={()=>setDialog("publish")}>Publicar</button><details className="admin-user-menu"><summary aria-label="Abrir menú de usuario"><span>{session?.email.slice(0,1).toUpperCase()}</span></summary><div><strong>{session?.email}</strong><button type="button" onClick={async()=>{await logout();navigate("/admin/login",{replace:true})}}>Cerrar sesión</button></div></details></div></header><div className="admin-demo-banner">Modo demostración: los cambios se guardan solo en este navegador.</div><main className="admin-main"><Outlet/></main></div>
+    <ConfirmDialog open={dialog==="discard"} title="Descartar todos los cambios" description="El borrador local volverá a coincidir con el contenido publicado. Esta acción no se puede deshacer." confirmLabel="Descartar" danger onClose={()=>setDialog(null)} onConfirm={doDiscard}/>
+    <ConfirmDialog open={dialog==="publish"} title="Publicar el borrador" description={publishSections?`Se publicarán cambios en: ${publishSections}.`:"Se guardarán y publicarán los cambios actuales."} confirmLabel="Publicar ahora" onClose={()=>setDialog(null)} onConfirm={doPublish}/>
+    <Toast message={toast}/>
+  </div>;
+}
