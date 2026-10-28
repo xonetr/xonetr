@@ -5,6 +5,7 @@ import {ContentProvider} from "./content/ContentProvider";
 import "./styles.css";
 
 const isAdminRoute=window.location.pathname.startsWith("/admin");
+document.documentElement.classList.add("scrollbar-custom");
 const AdminApp=lazy(()=>import("./admin/AdminApp"));
 if(isAdminRoute){
   const robots=document.querySelector<HTMLMetaElement>('meta[name="robots"]')??document.head.appendChild(document.createElement("meta"));
