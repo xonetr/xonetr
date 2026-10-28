@@ -5,7 +5,7 @@ export const siteContent:SiteContent = {
   // TODO: Revisar metadatos, recursos de marca y llamada a la acción antes del lanzamiento.
   settings:{siteTitle:"XONETR INC — Soluciones de software",metaDescription:"XONETR INC desarrolla páginas web, aplicaciones y sistemas a medida.",ogImage:"/assets/xonetr-logo.png",logo:"/assets/xonetr-logo.png",favicon:"/assets/favicon-x.svg",menuAction:{label:"Hablemos",href:"#contacto"}},
   // TODO: Revisar los nombres finales de navegación antes de publicar.
-  navigation:[{label:"Sobre nosotros",href:"#nosotros"},{label:"Proyectos",href:"#proyectos"},{label:"Servicios",href:"#servicios"},{label:"FAQ",href:"#faq"}],
+  navigation:[{label:"Sobre nosotros",href:"#nosotros"},{label:"Servicios",href:"#servicios"},{label:"Proyectos",href:"#proyectos"},{label:"Equipo",href:"#equipo"},{label:"FAQ",href:"#faq"}],
   hero:{eyebrow:"XONETR INC",title:{lead:"Soluciones modernas,",emphasis:"confiables,",tail:"tecnológicas, cercanas"},description:"Desarrollamos páginas web, apps y sistemas a medida para tu negocio.",primaryCta:{label:"Cotiza tu proyecto",href:"#contacto"},secondaryCta:{label:"Ver servicios",href:"#servicios"}},
   // TODO: Validar estos textos, snippets y mensajes de apoyo con el equipo antes de publicar.
   whatWeDo:{eyebrow:"SERVICIO",title:"Cómo pensamos",description:"Convertimos ideas y procesos en productos digitales claros, sólidos y fáciles de usar. Código cuidado, decisiones honestas y trabajo en equipo.",codeSamples:[
@@ -54,7 +54,7 @@ export const siteContent:SiteContent = {
   contact:{eyebrow:"CONTACTO",title:"Hagamos algo que funcione.",description:"Cuéntanos sobre tu idea, proceso o desafío. Te responderemos con claridad y sin vueltas.",email:"contacto@xonetr.example",whatsappLabel:"+595 000 000 000",whatsappHref:"https://wa.me/595000000000"},
   // TODO: Confirmar enlaces sociales y páginas legales antes del lanzamiento.
   footer:{description:"Software bien pensado para negocios que quieren avanzar con claridad.",columns:[
-    {title:"Navegación",links:[{label:"Sobre nosotros",href:"#nosotros"},{label:"Proyectos",href:"#proyectos"},{label:"Servicios",href:"#servicios"},{label:"FAQ",href:"#faq"}]},
+    {title:"Navegación",links:[{label:"Sobre nosotros",href:"#nosotros"},{label:"Servicios",href:"#servicios"},{label:"Proyectos",href:"#proyectos"},{label:"Equipo",href:"#equipo"},{label:"FAQ",href:"#faq"}]},
     {title:"Contacto",links:[{label:"contacto@xonetr.example",href:"mailto:contacto@xonetr.example"},{label:"+595 000 000 000",href:"https://wa.me/595000000000"}]}
   ],socials:[
     {label:"LinkedIn",href:""},
