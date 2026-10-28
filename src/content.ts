@@ -3,7 +3,7 @@ import type {SiteContent} from "./content/schema";
 export const siteContent:SiteContent = {
   brand:{name:"XONETR",legalName:"XONETR INC"},
   // TODO: Revisar metadatos, recursos de marca y llamada a la acción antes del lanzamiento.
-  settings:{siteTitle:"XONETR INC — Soluciones de software",metaDescription:"XONETR INC desarrolla páginas web, aplicaciones y sistemas a medida.",ogImage:"/assets/xonetr-logo.png",logo:"/assets/xonetr-logo.png",favicon:"/assets/xonetr-logo.png",menuAction:{label:"Hablemos",href:"#contacto"}},
+  settings:{siteTitle:"XONETR INC — Soluciones de software",metaDescription:"XONETR INC desarrolla páginas web, aplicaciones y sistemas a medida.",ogImage:"/assets/xonetr-logo.png",logo:"/assets/xonetr-logo.png",favicon:"/assets/favicon-x.svg",menuAction:{label:"Hablemos",href:"#contacto"}},
   // TODO: Revisar los nombres finales de navegación antes de publicar.
   navigation:[{label:"Sobre nosotros",href:"#nosotros"},{label:"Proyectos",href:"#proyectos"},{label:"Servicios",href:"#servicios"},{label:"FAQ",href:"#faq"}],
   hero:{eyebrow:"XONETR INC",title:{lead:"Soluciones modernas,",emphasis:"confiables,",tail:"tecnológicas, cercanas"},description:"Desarrollamos páginas web, apps y sistemas a medida para tu negocio.",primaryCta:{label:"Cotiza tu proyecto",href:"#contacto"},secondaryCta:{label:"Ver servicios",href:"#servicios"}},
@@ -53,7 +53,10 @@ export const siteContent:SiteContent = {
   // TODO: Reemplazar correo y WhatsApp por los canales oficiales.
   contact:{eyebrow:"CONTACTO",title:"Hagamos algo que funcione.",description:"Cuéntanos sobre tu idea, proceso o desafío. Te responderemos con claridad y sin vueltas.",email:"contacto@xonetr.example",whatsappLabel:"+595 000 000 000",whatsappHref:"https://wa.me/595000000000"},
   // TODO: Confirmar enlaces sociales y páginas legales antes del lanzamiento.
-  footer:{description:"Software bien pensado para negocios que quieren avanzar con claridad.",socials:[
+  footer:{description:"Software bien pensado para negocios que quieren avanzar con claridad.",columns:[
+    {title:"Navegación",links:[{label:"Sobre nosotros",href:"#nosotros"},{label:"Proyectos",href:"#proyectos"},{label:"Servicios",href:"#servicios"},{label:"FAQ",href:"#faq"}]},
+    {title:"Contacto",links:[{label:"contacto@xonetr.example",href:"mailto:contacto@xonetr.example"},{label:"+595 000 000 000",href:"https://wa.me/595000000000"}]}
+  ],socials:[
     {label:"LinkedIn",href:""},
     {label:"Instagram",href:""},
     {label:"GitHub",href:""}

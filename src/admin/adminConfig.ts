@@ -1,29 +1,43 @@
 import type {SiteContent} from "../content/schema";
 
 export type AdminNavItem={label:string;to:string;icon:string;section?:keyof SiteContent};
+export type AdminNavGroup={id:string;label:string;items:AdminNavItem[]};
 
-export const editableSections:AdminNavItem[]=[
-  {label:"Inicio",to:"/admin/editar/inicio",icon:"hero",section:"hero"},
+export const summaryNavigation:AdminNavItem={label:"Resumen",to:"/admin",icon:"summary"};
+
+export const adminNavigationGroups:AdminNavGroup[]=[
+  {id:"presentation",label:"Presentación",items:[
+  {label:"Inicio",to:"/admin/editar/inicio",icon:"home",section:"hero"},
   {label:"¿Qué hacemos?",to:"/admin/editar/nosotros",icon:"code",section:"whatWeDo"},
-  {label:"¿Qué ofrecemos?",to:"/admin/editar/servicios",icon:"services",section:"services"},
-  {label:"¿Cómo trabajamos?",to:"/admin/editar/proceso",icon:"process",section:"process"},
-  {label:"Proyectos",to:"/admin/editar/proyectos",icon:"projects",section:"projects"},
-  {label:"Precios",to:"/admin/editar/precios",icon:"pricing",section:"pricing"},
-  {label:"¿Qué queremos?",to:"/admin/editar/proposito",icon:"purpose",section:"purpose"},
-  {label:"Equipo",to:"/admin/editar/equipo",icon:"team",section:"team"},
-  {label:"FAQ",to:"/admin/editar/faq",icon:"faq",section:"faq"},
-  {label:"Contacto",to:"/admin/editar/contacto",icon:"contact",section:"contact"},
-  {label:"Pie de página",to:"/admin/editar/footer",icon:"footer",section:"footer"},
+  {label:"¿Qué ofrecemos?",to:"/admin/editar/servicios",icon:"layers",section:"services"},
+  {label:"¿Cómo trabajamos?",to:"/admin/editar/proceso",icon:"git-branch",section:"process"},
+  ]},
+  {id:"trust",label:"Confianza",items:[
+  {label:"Proyectos",to:"/admin/editar/proyectos",icon:"folder-kanban",section:"projects"},
+  {label:"Equipo",to:"/admin/editar/equipo",icon:"users",section:"team"},
+  {label:"¿Qué queremos?",to:"/admin/editar/proposito",icon:"target",section:"purpose"},
+  {label:"FAQ",to:"/admin/editar/faq",icon:"circle-help",section:"faq"},
+  ]},
+  {id:"conversion",label:"Conversión",items:[
+  {label:"Precios",to:"/admin/editar/precios",icon:"tag",section:"pricing"},
+  {label:"Contacto",to:"/admin/editar/contacto",icon:"mail",section:"contact"},
+  ]},
+  {id:"site",label:"Sitio",items:[
+  {label:"Pie de página",to:"/admin/editar/footer",icon:"panel-bottom",section:"footer"},
+  {label:"Ajustes del sitio",to:"/admin/ajustes",icon:"settings",section:"settings"},
+  ]},
+  {id:"tools",label:"Herramientas",items:[
+  {label:"Medios",to:"/admin/medios",icon:"image"},
+  {label:"Historial",to:"/admin/historial",icon:"history"},
+  ]},
 ];
 
-export const utilityNavigation:AdminNavItem[]=[
-  {label:"Medios",to:"/admin/medios",icon:"media"},
-  {label:"Historial",to:"/admin/historial",icon:"history"},
-  {label:"Ajustes del sitio",to:"/admin/ajustes",icon:"settings",section:"settings"},
-];
+export const allAdminNavigation=adminNavigationGroups.flatMap(group=>group.items);
+export const editableSections=allAdminNavigation.filter(item=>item.to.startsWith("/admin/editar/"));
+export const utilityNavigation=allAdminNavigation.filter(item=>!item.to.startsWith("/admin/editar/"));
 
 export function resolveAdminTitle(pathname:string){
   if(pathname==="/admin")return"Resumen";
-  return [...editableSections,...utilityNavigation].find(item=>pathname.startsWith(item.to))?.label??"Panel de administración";
+  return allAdminNavigation.find(item=>pathname.startsWith(item.to))?.label??"Panel de administración";
 }
 

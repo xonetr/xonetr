@@ -9,6 +9,15 @@ const VALID_IMAGE_TYPES=new Set(["image/png","image/jpeg","image/webp","image/sv
 type StoredVersion=VersionInfo&{content:SiteContent};
 
 function cloneDefault():SiteContent{return siteContentSchema.parse(defaultContent)}
+function hydrateContent(content:SiteContent):SiteContent{
+  const defaults=cloneDefault();
+  const storedFavicon=content.settings?.favicon;
+  return siteContentSchema.parse({
+    ...content,
+    footer:{...content.footer,columns:content.footer.columns?.length?content.footer.columns:defaults.footer.columns},
+    settings:{...defaults.settings,...content.settings,favicon:!storedFavicon||storedFavicon==="/assets/xonetr-logo.png"?defaults.settings?.favicon:storedFavicon},
+  });
+}
 function readContent(key:string):SiteContent|null{
   try{const raw=localStorage.getItem(key);if(!raw)return null;const result=siteContentSchema.safeParse(JSON.parse(raw));return result.success?result.data:null}catch{return null}
 }
@@ -21,8 +30,8 @@ function readMedia():MediaInfo[]{
 function fileToDataUrl(file:File){return new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onerror=()=>reject(new Error("No se pudo leer la imagen."));reader.onload=()=>resolve(String(reader.result));reader.readAsDataURL(file)})}
 
 export class LocalContentRepository implements ContentRepository{
-  async getPublished(){return readContent(KEYS.published)??cloneDefault()}
-  async getDraft(){return readContent(KEYS.draft)??this.getPublished()}
+  async getPublished(){return hydrateContent(readContent(KEYS.published)??cloneDefault())}
+  async getDraft(){const stored=readContent(KEYS.draft);return stored?hydrateContent(stored):this.getPublished()}
   async saveDraft(content:SiteContent){const validated=siteContentSchema.parse(content);localStorage.setItem(KEYS.draft,JSON.stringify(validated))}
   async publish(){
     const content=await this.getDraft();
