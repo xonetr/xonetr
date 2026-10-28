@@ -3,6 +3,9 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import {ContentProvider} from "./content/ContentProvider";
 import "./styles.css";
+import "./hero-adjustments.css";
+import "./orbit-animation.css";
+import "./team-socials.css";
 
 const isAdminRoute=window.location.pathname.startsWith("/admin");
 document.documentElement.classList.add("scrollbar-custom");

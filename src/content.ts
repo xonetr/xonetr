@@ -31,10 +31,10 @@ export const siteContent:SiteContent = {
   ]},
   // TODO: Confirmar roles, biografías y fotografías con cada integrante.
   team:{eyebrow:"PERSONAL",title:"Conoce al equipo",members:[
-    {name:"Joshua Mongelos",initials:"JM",role:"Desarrollo de software",bio:"Construye productos digitales con atención al detalle y foco en las personas.",photo:undefined as string|undefined},
-    {name:"Thiago Estigarribia",initials:"TE",role:"Desarrollo de software",bio:"Convierte problemas complejos en soluciones claras, mantenibles y útiles.",photo:undefined as string|undefined},
-    {name:"Marcos Molinas",initials:"MM",role:"Desarrollo de software",bio:"Une criterio técnico y diseño para crear experiencias digitales consistentes.",photo:undefined as string|undefined},
-    {name:"Samuel Schmidt",initials:"SS",role:"Desarrollo de software",bio:"Impulsa sistemas sólidos y procesos de trabajo simples para el equipo.",photo:undefined as string|undefined}
+    {name:"Joshua Mongelos",initials:"JM",role:"Desarrollo de software",bio:"Construye productos digitales con atención al detalle y foco en las personas.",photo:undefined as string|undefined,links:[{label:"LinkedIn",href:""},{label:"GitHub",href:""}]},
+    {name:"Thiago Estigarribia",initials:"TE",role:"Desarrollo de software",bio:"Convierte problemas complejos en soluciones claras, mantenibles y útiles.",photo:undefined as string|undefined,links:[{label:"LinkedIn",href:""},{label:"GitHub",href:""}]},
+    {name:"Marcos Molinas",initials:"MM",role:"Desarrollo de software",bio:"Une criterio técnico y diseño para crear experiencias digitales consistentes.",photo:undefined as string|undefined,links:[{label:"LinkedIn",href:""},{label:"GitHub",href:""}]},
+    {name:"Samuel Schmidt",initials:"SS",role:"Desarrollo de software",bio:"Impulsa sistemas sólidos y procesos de trabajo simples para el equipo.",photo:undefined as string|undefined,links:[{label:"LinkedIn",href:""},{label:"GitHub",href:""}]}
   ]},
   // TODO: Validar la declaración de propósito y los principios definitivos.
   purpose:{eyebrow:"PROPÓSITO",title:"¿Qué queremos?",description:"Crear software que haga más simple lo complejo y construir relaciones de trabajo cercanas, transparentes y duraderas.",principles:[

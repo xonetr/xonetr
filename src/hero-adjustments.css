@@ -1,0 +1,4 @@
+/* Ajustes ópticos específicos del Hero público. */
+.hero__video{mask-image:linear-gradient(90deg,rgba(0,0,0,.18) 0%,rgba(0,0,0,.2) 55%,rgba(0,0,0,.58) 84%,rgba(0,0,0,.64) 100%);-webkit-mask-image:linear-gradient(90deg,rgba(0,0,0,.18) 0%,rgba(0,0,0,.2) 55%,rgba(0,0,0,.58) 84%,rgba(0,0,0,.64) 100%)}
+.scroll-cue{right:max(clamp(18px,3.5vw,52px),calc((100vw - 1440px)/2 + 52px))}
+@media(min-width:1024px) and (max-width:1200px){.scroll-cue{right:24px}}

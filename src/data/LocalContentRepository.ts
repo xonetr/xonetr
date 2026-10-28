@@ -9,11 +9,13 @@ const VALID_IMAGE_TYPES=new Set(["image/png","image/jpeg","image/webp","image/sv
 type StoredVersion=VersionInfo&{content:SiteContent};
 
 function cloneDefault():SiteContent{return siteContentSchema.parse(defaultContent)}
+function hydrateMemberLinks(links:SiteContent["team"]["members"][number]["links"]){const current=links??[];const required=[{label:"LinkedIn",href:""},{label:"GitHub",href:""}];return[...current,...required.filter(item=>!current.some(link=>link.label.toLowerCase()===item.label.toLowerCase()))]}
 function hydrateContent(content:SiteContent):SiteContent{
   const defaults=cloneDefault();
   const storedFavicon=content.settings?.favicon;
   return siteContentSchema.parse({
     ...content,
+    team:{...content.team,members:content.team.members.map(member=>({...member,links:hydrateMemberLinks(member.links)}))},
     footer:{...content.footer,columns:content.footer.columns?.length?content.footer.columns:defaults.footer.columns},
     settings:{...defaults.settings,...content.settings,favicon:!storedFavicon||storedFavicon==="/assets/xonetr-logo.png"?defaults.settings?.favicon:storedFavicon},
   });
