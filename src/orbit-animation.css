@@ -1,9 +1,11 @@
 .orbit__path{fill:none;stroke:#05050a99;stroke-width:1.75}
 .orbit__dot{fill:var(--bg)}
 .orbit__dot--secondary{opacity:.7}
+.orbit__star-rotation{transform-origin:250px 180px;animation:orbit-star-rotate 24s linear infinite}
 .orbit__star{fill:var(--bg);transform-box:fill-box;transform-origin:center;animation:orbit-star-pulse 4s ease-in-out infinite;filter:drop-shadow(0 0 10px rgb(116 126 250/.2))}
 .purpose-star-glow{animation:orbit-star-glow 4s ease-in-out infinite}
-.is-orbit-paused .purpose-glow,.is-orbit-paused .purpose-star-glow,.is-orbit-paused .orbit__star{animation-play-state:paused}
+.is-orbit-paused .purpose-glow,.is-orbit-paused .purpose-star-glow,.is-orbit-paused .orbit__star-rotation,.is-orbit-paused .orbit__star{animation-play-state:paused}
+@keyframes orbit-star-rotate{to{transform:rotate(360deg)}}
 @keyframes orbit-star-pulse{0%,100%{transform:scale(1);filter:drop-shadow(0 0 8px rgb(116 126 250/.14))}50%{transform:scale(1.06);filter:drop-shadow(0 0 15px rgb(116 126 250/.3))}}
 @keyframes orbit-star-glow{0%,100%{opacity:.58;transform:scale(.94)}50%{opacity:.9;transform:scale(1.06)}}
-@media(prefers-reduced-motion:reduce){.orbit__star,.purpose-star-glow{animation:none}.purpose-glow{animation:none}}
+@media(prefers-reduced-motion:reduce){.orbit__star-rotation,.orbit__star,.purpose-star-glow{animation:none}.purpose-glow{animation:none}}

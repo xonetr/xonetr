@@ -36,7 +36,7 @@ function Orbit(){
       </g>
       <circle className="orbit__dot" r="6"><animateMotion dur="14s" repeatCount="indefinite" calcMode="linear"><mpath href="#orbit-horizontal-path"/></animateMotion></circle>
       <circle className="orbit__dot orbit__dot--secondary" r="3.6"><animateMotion dur="14s" begin="-7s" repeatCount="indefinite" calcMode="linear"><mpath href="#orbit-horizontal-path"/></animateMotion></circle>
-      <path className="orbit__star" d="M250 126c7 31 24 47 54 54-30 7-47 24-54 54-7-30-24-47-54-54 30-7 47-23 54-54Z"/>
+      <g className="orbit__star-rotation"><path className="orbit__star" d="M250 126c7 31 24 47 54 54-30 7-47 24-54 54-7-30-24-47-54-54 30-7 47-23 54-54Z"/></g>
     </svg>
   </div>;
 }
