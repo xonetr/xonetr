@@ -18,6 +18,9 @@ const paths:Record<string,ReactNode>={
   history:<><path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.5"/><path d="M4 4v4.5h4.5M12 7v5l3 2"/></>,
   menu:<path d="M4 7h16M4 12h16M4 17h16"/>,
   search:<><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></>,
+  close:<path d="m6 6 12 12M18 6 6 18"/>,
+  sidebar:<><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18m6-13-4 4 4 4"/></>,
+  "external-link":<><path d="M14 5h5v5M19 5l-8 8"/><path d="M19 14v5H5V5h5"/></>,
   chevron:<path d="m9 18 6-6-6-6"/>,
 };
 

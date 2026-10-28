@@ -15,8 +15,8 @@ function SocialIcon({label}:{label:string}){
 }
 
 function MemberDetail({member}:{member:Member}){
-  const links=(member.links??[]).filter(link=>link.href.trim());
-  return <div className="member-detail"><div className="member-detail__portrait" role="img" aria-label={member.photo?member.photoAlt||`Foto de ${member.name}`:`Foto provisional de ${member.name}`}>{member.photo?<img src={member.photo} alt="" width="520" height="520" loading="lazy"/>:<span>{member.initials}</span>}</div><div><p>{member.role}</p><h3>{member.name}</h3><blockquote>“{member.bio}”</blockquote>{links.length>0&&<nav className="member-detail__socials" aria-label={`Perfiles de ${member.name}`}>{links.map(link=><a href={link.href} key={`${link.label}-${link.href}`} target="_blank" rel="noreferrer" aria-label={`${link.label} de ${member.name}`} title={link.label}><SocialIcon label={link.label}/></a>)}</nav>}</div></div>;
+  const links=["LinkedIn","GitHub"].map(label=>member.links?.find(link=>link.label.toLowerCase()===label.toLowerCase())??{label,href:""});
+  return <div className="member-detail"><div className="member-detail__portrait" role="img" aria-label={member.photo?member.photoAlt||`Foto de ${member.name}`:`Foto provisional de ${member.name}`}>{member.photo?<img src={member.photo} alt="" width="520" height="520" loading="lazy"/>:<span>{member.initials}</span>}</div><div><p>{member.role}</p><h3>{member.name}</h3><blockquote>“{member.bio}”</blockquote><div className="member-detail__socials" aria-label={`Perfiles de ${member.name}`}>{links.map(link=>link.href.trim()?<a href={link.href} key={link.label} target="_blank" rel="noreferrer" aria-label={`${link.label} de ${member.name}`} title={link.label}><SocialIcon label={link.label}/></a>:<span className="member-detail__social-placeholder" key={link.label} role="img" aria-label={`${link.label} todavía no configurado`} title={`${link.label} todavía no configurado`}><SocialIcon label={link.label}/></span>)}</div></div></div>;
 }
 
 export function Team(){

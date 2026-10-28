@@ -10,6 +10,7 @@ import {MediaPage} from "./pages/MediaPage";
 import {HistoryPage} from "./pages/HistoryPage";
 import {SettingsPage} from "./pages/SettingsPage";
 import "./admin.css";
+import "./admin-mobile.css";
 
 function ProtectedRoute(){const {session,loading}=useAdminAuth();const location=useLocation();if(loading)return <div className="admin-boot">Comprobando sesión…</div>;if(!session)return <Navigate to="/admin/login" replace state={{from:location.pathname}}/>;return <AdminContentProvider><Outlet/></AdminContentProvider>}
 
