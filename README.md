@@ -9,6 +9,8 @@ npm install
 npm run dev
 ```
 
+Para habilitar el backend FastAPI, consulta `backend/README.md`.
+
 Para producción: `npm run build` y luego `npm run preview`.
 
 ## Estructura
