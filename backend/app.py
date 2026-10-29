@@ -14,8 +14,15 @@ from fastapi.responses import FileResponse
 
 
 ROOT = Path(__file__).resolve().parent.parent
-DATABASE_PATH = Path(os.getenv("DATABASE_PATH", ROOT / "backend/data/xonetr.sqlite3"))
-MEDIA_DIRECTORY = Path(os.getenv("MEDIA_DIRECTORY", ROOT / "backend/data/media"))
+
+
+def project_path(value: str | Path) -> Path:
+    path = Path(value)
+    return path if path.is_absolute() else ROOT / path
+
+
+DATABASE_PATH = project_path(os.getenv("DATABASE_PATH", "backend/data/xonetr.sqlite3"))
+MEDIA_DIRECTORY = project_path(os.getenv("MEDIA_DIRECTORY", "backend/data/media"))
 SESSION_SECRET = os.getenv("SESSION_SECRET", "development-session-secret-change-me")
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@xonetr.com")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
