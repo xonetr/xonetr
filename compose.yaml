@@ -8,7 +8,7 @@ services:
     environment:
       DATABASE_PATH: /app/backend/data/xonetr.sqlite3
       MEDIA_DIRECTORY: /app/backend/data/media
-      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+      CORS_ORIGINS: http://localhost:8010,http://127.0.0.1:8010,https://xonetr.sytes.net,http://xonetr.sytes.net
     volumes:
       - backend-data:/app/backend/data
     ports:
@@ -18,16 +18,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.frontend
-    environment:
-      API_PROXY_TARGET: http://backend:8000
-    volumes:
-      - .:/app
-      - frontend-node-modules:/app/node_modules
-    ports:
-      - "5173:5173"
     depends_on:
       - backend
+    ports:
+      - "8010:80"
+    environment:
+      VITE_API_BASE_URL: http://backend:8000
 
 volumes:
   backend-data:
-  frontend-node-modules:

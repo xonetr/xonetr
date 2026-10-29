@@ -22,6 +22,10 @@ export const adminNavigationGroups:AdminNavGroup[]=[
   {label:"Precios",to:"/admin/editar/precios",icon:"tag",section:"pricing"},
   {label:"Contacto",to:"/admin/editar/contacto",icon:"mail",section:"contact"},
   ]},
+  {id:"operations",label:"Operaciones",items:[
+  {label:"Dashboard",to:"/admin/operaciones",icon:"summary"},
+  {label:"Tablero",to:"/admin/tablero",icon:"folder-kanban"},
+  ]},
   {id:"site",label:"Sitio",items:[
   {label:"Pie de página",to:"/admin/editar/footer",icon:"panel-bottom",section:"footer"},
   {label:"Ajustes del sitio",to:"/admin/ajustes",icon:"settings",section:"settings"},
