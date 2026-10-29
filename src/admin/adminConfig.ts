@@ -29,6 +29,7 @@ export const adminNavigationGroups:AdminNavGroup[]=[
   {id:"tools",label:"Herramientas",items:[
   {label:"Medios",to:"/admin/medios",icon:"image"},
   {label:"Historial",to:"/admin/historial",icon:"history"},
+  {label:"Autorizaciones",to:"/admin/autorizaciones",icon:"key"},
   ]},
 ];
 
@@ -40,4 +41,3 @@ export function resolveAdminTitle(pathname:string){
   if(pathname==="/admin")return"Resumen";
   return allAdminNavigation.find(item=>pathname.startsWith(item.to))?.label??"Panel de administración";
 }
-
