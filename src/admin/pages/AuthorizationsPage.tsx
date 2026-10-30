@@ -29,20 +29,28 @@ export function AuthorizationsPage(){
     try{const result=await api("/api/authorizations",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({project:project.trim(),subject:subject.trim(),scopes:scopes.split(",").map(value=>value.trim()).filter(Boolean),expires_at:expiresAt})});setToken(result.token);setToast("Autorización firmada emitida.");setProject("");setSubject("");setScopes("");setExpiresAt("");await load()}catch(cause){setError(cause instanceof Error?cause.message:"No se pudo emitir la autorización.")}};
   const revoke=async()=>{if(!selected)return;try{await api(`/api/authorizations/${encodeURIComponent(selected.id)}/revoke`,{method:"POST"});setSelected(null);setToast("Autorización revocada.");await load()}catch(cause){setError(cause instanceof Error?cause.message:"No se pudo revocar la autorización.")}};
   const copy=async()=>{try{await navigator.clipboard.writeText(token);setToast("Token copiado.")}catch{setError("No se pudo copiar el token.")}};
-  return <div className="admin-page">
-    <section className="admin-panel-card"><div className="admin-panel-card__heading"><div><p className="admin-kicker">// FIRMA CRIPTOGRÁFICA</p><h2>Emitir autorización</h2></div></div>
-      <form className="admin-form-grid" onSubmit={issue}>
-        <label>Proyecto<input value={project} onChange={event=>setProject(event.target.value)} required/></label>
-        <label>Sujeto / cliente<input value={subject} onChange={event=>setSubject(event.target.value)} required/></label>
-        <label>Alcances, separados por comas<input value={scopes} onChange={event=>setScopes(event.target.value)} placeholder="software:deploy, api:read"/></label>
-        <label>Expira<input type="datetime-local" value={expiresAt} onChange={event=>setExpiresAt(event.target.value)} required/></label>
-        <button className="admin-button admin-button--primary" type="submit">Emitir firma</button>
+  const activeCount=items.filter(item=>item.status==="active").length;
+  const formatDate=(value:string)=>new Intl.DateTimeFormat("es-PY",{dateStyle:"medium",timeStyle:"short"}).format(new Date(value));
+  return <div className="admin-page authorizations-page">
+    <header className="authorizations-header">
+      <div><p className="admin-kicker">// FIRMAS DIGITALES</p><h2>Autorizaciones</h2><p>Emite credenciales firmadas y controla quién puede acceder a cada proyecto.</p></div>
+      <div className="authorizations-header__metric"><strong>{activeCount}</strong><span>activas</span></div>
+    </header>
+    <section className="admin-panel-card authorization-issue-card">
+      <div className="admin-panel-card__heading"><div><span className="authorization-card-icon" aria-hidden="true">+</span><div><p className="admin-kicker">// NUEVA AUTORIZACIÓN</p><h2>Emitir firma</h2></div></div></div>
+      <form className="authorization-form" onSubmit={issue}>
+        <label className="authorization-field authorization-field--project"><span>Proyecto</span><input value={project} onChange={event=>setProject(event.target.value)} placeholder="Nombre o identificador del proyecto" required/></label>
+        <label className="authorization-field authorization-field--subject"><span>Sujeto / cliente</span><input value={subject} onChange={event=>setSubject(event.target.value)} placeholder="Nombre, email o ID" required/></label>
+        <label className="authorization-field authorization-field--scopes"><span>Permisos</span><input value={scopes} onChange={event=>setScopes(event.target.value)} placeholder="api:read, software:deploy"/><small>Separados por comas</small></label>
+        <label className="authorization-field authorization-field--expires"><span>Fecha de vencimiento</span><input type="datetime-local" value={expiresAt} onChange={event=>setExpiresAt(event.target.value)} required/></label>
+        <button className="admin-button admin-button--primary authorization-submit" type="submit">Emitir autorización</button>
       </form>
-      {token&&<div className="admin-field"><div className="admin-field__heading"><label>Token firmado</label><button className="admin-button admin-button--secondary" type="button" onClick={()=>void copy()}>Copiar</button></div><textarea readOnly value={token} rows={5}/></div>}
-      {error&&<p className="admin-state admin-state--error" role="alert">{error}</p>}
+      {token&&<div className="authorization-token"><div><div><strong>Firma emitida correctamente</strong><span>Entregá este token únicamente al sujeto autorizado.</span></div><button className="admin-button admin-button--secondary" type="button" onClick={()=>void copy()}>Copiar token</button></div><textarea readOnly value={token} rows={4}/></div>}
+      {error&&<p className="authorization-error" role="alert">{error}</p>}
     </section>
-    <section className="admin-panel-card"><div className="admin-panel-card__heading"><div><p className="admin-kicker">// REGISTRO</p><h2>Autorizaciones emitidas</h2></div></div>
-      {loading?<p>Cargando autorizaciones…</p>:items.length===0?<div className="admin-empty"><p>Todavía no hay autorizaciones emitidas.</p></div>:<div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Proyecto</th><th>Sujeto</th><th>Vencimiento</th><th>Estado</th><th/></tr></thead><tbody>{items.map(item=><tr key={item.id}><td>{item.project}<small>{item.scopes.join(", ")||"Sin alcances"}</small></td><td>{item.subject}</td><td>{new Date(item.expiresAt).toLocaleString("es-PY")}</td><td>{item.status==="active"?"Activa":"Revocada"}</td><td>{item.status==="active"&&<button className="admin-button admin-button--danger" type="button" onClick={()=>setSelected(item)}>Revocar</button>}</td></tr>)}</tbody></table></div>}
+    <section className="admin-panel-card authorization-register">
+      <div className="admin-panel-card__heading"><div><p className="admin-kicker">// REGISTRO</p><h2>Autorizaciones emitidas</h2></div><span className="authorization-total">{items.length} {items.length===1?"registro":"registros"}</span></div>
+      {loading?<div className="authorization-loading">Cargando autorizaciones…</div>:items.length===0?<div className="admin-empty"><strong>Sin autorizaciones todavía</strong><p>Las firmas emitidas aparecerán en este registro.</p></div>:<div className="authorization-table-wrap"><table className="authorization-table"><thead><tr><th>Proyecto</th><th>Sujeto</th><th>Vencimiento</th><th>Estado</th><th aria-label="Acciones"/></tr></thead><tbody>{items.map(item=><tr key={item.id}><td data-label="Proyecto"><strong>{item.project}</strong>{item.scopes.length>0&&<span>{item.scopes.join(" · ")}</span>}</td><td data-label="Sujeto">{item.subject}</td><td data-label="Vencimiento">{formatDate(item.expiresAt)}</td><td data-label="Estado"><span className={`authorization-status authorization-status--${item.status}`}>{item.status==="active"?"Activa":"Revocada"}</span></td><td className="authorization-actions">{item.status==="active"&&<button type="button" onClick={()=>setSelected(item)}>Revocar</button>}</td></tr>)}</tbody></table></div>}
     </section>
     {selected&&<ConfirmDialog open title="Revocar autorización" description={`La autorización de ${selected.project} quedará inválida inmediatamente.`} confirmLabel="Revocar" danger onClose={()=>setSelected(null)} onConfirm={()=>void revoke()}/>}
     {toast&&<Toast message={toast}/>}
