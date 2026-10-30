@@ -18,8 +18,9 @@ import {WhatWeDo} from "./sections/WhatWeDo";
 export default function App(){
   const siteContent=useSiteContent();
   const path=window.location.pathname.replace(/\/$/,"")||"/";
-  const preloader=usePreloader({active:path==="/",poster:siteContent.hero.background?.poster||"/assets/hero-poster.jpg"});
+  const logo=siteContent.settings?.logo||"/assets/xonetr-logo.png";
+  const preloader=usePreloader({active:path==="/",poster:siteContent.hero.background?.poster||"/assets/hero-poster.jpg",logo});
   const legal=path==="/privacidad"?siteContent.legal.privacy:path==="/terminos"?siteContent.legal.terms:null;
   if(legal)return <><SiteMetadata/><Header/><main id="contenido"><LegalPage content={legal}/></main><Footer/></>;
-  return <><SiteMetadata/><Preloader phase={preloader.phase} progress={preloader.progress} onSkip={preloader.skip}/><Header/><main id="contenido"><Hero entranceReady={preloader.heroReady}/><WhatWeDo/><Services/><Process/><Projects/><Pricing/><Team/><PurposeFaq/><Contact/></main><Footer/></>;
+  return <><SiteMetadata/><Preloader phase={preloader.phase} progress={preloader.progress} onSkip={preloader.skip} logo={logo}/><Header/><main id="contenido"><Hero entranceReady={preloader.heroReady}/><WhatWeDo/><Services/><Process/><Projects/><Pricing/><Team/><PurposeFaq/><Contact/></main><Footer/></>;
 }

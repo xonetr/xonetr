@@ -16,7 +16,7 @@ function markSession(){
 function debugMode(){return import.meta.env.DEV?new URLSearchParams(window.location.search).get("__preloader"):null}
 function prefersReducedMotion(){return typeof window!=="undefined"&&(debugMode()==="reduced"||window.matchMedia("(prefers-reduced-motion: reduce)").matches)}
 
-export function usePreloader({active,poster}:{active:boolean;poster:string}){
+export function usePreloader({active,poster,logo}:{active:boolean;poster:string;logo:string}){
   const shouldStart=useMemo(()=>active&&preloaderConfig.enabled&&!prefersReducedMotion()&&!sessionWasShown(),[active]);
   const [phase,setPhase]=useState<PreloaderPhase>(shouldStart?"visible":"done");
   const [readyCount,setReadyCount]=useState(0);
@@ -38,7 +38,9 @@ export function usePreloader({active,poster}:{active:boolean;poster:string}){
     previousOverflow.current=document.body.style.overflow;
     document.body.style.overflow="hidden";
     const mark=(key:string)=>{if(completed.current.has(key))return;completed.current.add(key);setReadyCount(completed.current.size)};
-    const simulateBlockedResources=debugMode()==="slow";
+    const currentDebugMode=debugMode();
+    const previewMode=currentDebugMode==="preview";
+    const simulateBlockedResources=currentDebugMode==="slow"||previewMode;
 
     if(!simulateBlockedResources){
       if(document.readyState==="complete")mark("window");
@@ -47,21 +49,21 @@ export function usePreloader({active,poster}:{active:boolean;poster:string}){
       if("fonts" in document)void document.fonts.ready.then(()=>mark("fonts"),()=>mark("fonts"));
       else mark("fonts");
 
-      const image=new Image();
-      image.onload=()=>mark("poster");image.onerror=()=>mark("poster");image.src=poster;
-      if(image.complete)mark("poster");
+      const preloadImage=(key:string,src:string)=>{const image=new Image();image.onload=()=>mark(key);image.onerror=()=>mark(key);image.src=src;if(image.complete)mark(key)};
+      preloadImage("poster",poster);
+      preloadImage("logo",logo);
     }
 
     const minimumTimer=window.setTimeout(()=>setMinimumElapsed(true),preloaderConfig.minimumDuration);
-    const maximumTimer=window.setTimeout(beginExit,Math.max(0,preloaderConfig.maximumDuration-preloaderConfig.exitDuration));
+    const maximumTimer=previewMode?undefined:window.setTimeout(beginExit,Math.max(0,preloaderConfig.maximumDuration-preloaderConfig.exitDuration));
     const onKey=(event:KeyboardEvent)=>{if(event.key==="Escape"||event.key==="Enter")beginExit()};
     window.addEventListener("keydown",onKey);
-    return()=>{window.clearTimeout(minimumTimer);window.clearTimeout(maximumTimer);window.removeEventListener("keydown",onKey);document.body.style.overflow=previousOverflow.current};
-  },[poster,shouldStart]);
+    return()=>{window.clearTimeout(minimumTimer);if(maximumTimer!==undefined)window.clearTimeout(maximumTimer);window.removeEventListener("keydown",onKey);document.body.style.overflow=previousOverflow.current};
+  },[poster,logo,shouldStart]);
 
-  useEffect(()=>{if(phase==="visible"&&readyCount>=3&&minimumElapsed)beginExit()},[phase,readyCount,minimumElapsed]);
+  useEffect(()=>{if(phase==="visible"&&readyCount>=4&&minimumElapsed)beginExit()},[phase,readyCount,minimumElapsed]);
 
-  const target=phase==="exiting"||phase==="done"?100:Math.min(99,readyCount/3*92+(minimumElapsed?7:0));
+  const target=phase==="exiting"||phase==="done"?100:Math.min(99,readyCount/4*92+(minimumElapsed?7:0));
   useEffect(()=>{
     if(!shouldStart)return;
     let frame=0;
