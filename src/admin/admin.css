@@ -99,3 +99,29 @@
 .authorization-register .admin-empty p{margin:6px 0 0}
 
 @media(max-width:680px){.authorizations-header{align-items:flex-start}.authorizations-header__metric{min-width:86px}.authorization-form{grid-template-columns:1fr}.authorization-submit{grid-column:1;width:100%}.authorization-token>div{align-items:flex-start;flex-direction:column}.authorization-table thead{display:none}.authorization-table,.authorization-table tbody,.authorization-table tr,.authorization-table td{display:block;width:100%}.authorization-table tr{padding:14px 18px;border-bottom:1px solid var(--border)}.authorization-table td{display:grid;min-height:auto;height:auto;padding:7px 0;border:0!important;grid-template-columns:92px minmax(0,1fr);align-items:center}.authorization-table td::before{color:#77768a;content:attr(data-label);font:600 .58rem/1 "JetBrains Mono",monospace;text-transform:uppercase}.authorization-actions{text-align:left}}
+
+/* Resumen del panel */
+.admin-summary-cards article{min-height:110px;padding:16px 18px}
+.admin-summary-cards strong{margin-top:8px;font-size:1.08rem}
+.admin-summary-cards span{margin-top:6px;font-size:.76rem;line-height:1.35}
+.admin-summary-cards span span{display:inline;margin:0}
+.admin-summary-cards a{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+.admin-status-group h3{color:var(--accent);font:600 .69rem/1.2 "JetBrains Mono",monospace;letter-spacing:.09em}
+.admin-status-grid{width:100%;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+.admin-status-card{display:flex;min-height:82px;padding:13px;border:1px solid var(--border);border-radius:11px;color:var(--text-muted);align-items:center;gap:11px;transition:border-color 160ms,background 160ms,color 160ms}
+.admin-status-card:is(a):hover{border-color:var(--glow);background:#141422;color:var(--text)}
+.admin-status-card>svg{width:19px;color:var(--accent);flex:0 0 auto}
+.admin-status-card>span{display:grid;min-width:0;gap:7px}
+.admin-status-card strong{overflow:hidden;color:var(--text);font-size:.8rem;text-overflow:ellipsis;white-space:nowrap}
+.admin-status-card small{display:flex;color:#aaa9b7;align-items:center;gap:6px;font:500 .75rem/1.2 "JetBrains Mono",monospace}
+.admin-status-card>b{margin-left:auto;color:#77768a;font-weight:400}
+.admin-status-card.is-upcoming{opacity:.48;cursor:not-allowed}
+.admin-status-card.is-upcoming svg{color:#77768a}
+.admin-section-state i{width:7px;height:7px;border-radius:50%;background:#8e8d9b;flex:0 0 auto}
+.admin-section-state.is-draft{color:var(--primary)}
+.admin-section-state.is-draft i{background:var(--primary)}
+.admin-section-state.is-published{color:#68d7a7}
+.admin-section-state.is-published i{background:#43c891}
+.admin-command-trigger{position:relative;z-index:2}
+.admin-command-trigger::before{position:absolute;z-index:-1;right:-2px;bottom:calc(100% + 1px);left:-2px;height:24px;background:linear-gradient(to top,#0b0b14 18%,rgb(11 11 20/0));content:"";pointer-events:none}
+@media(max-width:600px){.admin-status-grid{grid-template-columns:1fr}}
