@@ -25,6 +25,7 @@ export const adminNavigationGroups:AdminNavGroup[]=[
   {id:"operations",label:"Operaciones",items:[
   {label:"Dashboard",to:"/admin/operaciones",icon:"summary"},
   {label:"Tablero",to:"/admin/tablero",icon:"folder-kanban"},
+  {label:"Usuarios",to:"/admin/usuarios",icon:"users"},
   ]},
   {id:"site",label:"Sitio",items:[
   {label:"Pie de página",to:"/admin/editar/footer",icon:"panel-bottom",section:"footer"},

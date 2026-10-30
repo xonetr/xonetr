@@ -105,7 +105,12 @@ def serialize_user(row: sqlite3.Row | None) -> dict[str, Any] | None:
         'role': row['role'],
         'created_at': row['created_at'],
         'active': bool(row['active']),
+        'is_root': bool(row['is_root']) if 'is_root' in row.keys() else False,
     }
+
+
+def user_is_root(row: sqlite3.Row | None) -> bool:
+    return bool(row['is_root']) if row is not None and 'is_root' in row.keys() else False
 
 
 def get_user_by_email(email: str) -> sqlite3.Row | None:
@@ -166,7 +171,8 @@ def initialize_database() -> None:
                 password_hash TEXT NOT NULL,
                 role TEXT NOT NULL DEFAULT 'developer',
                 created_at TEXT NOT NULL,
-                active INTEGER NOT NULL DEFAULT 1
+                active INTEGER NOT NULL DEFAULT 1,
+                is_root INTEGER NOT NULL DEFAULT 0
             );
 
             CREATE TABLE IF NOT EXISTS projects (
@@ -280,10 +286,14 @@ def initialize_database() -> None:
             """
         )
 
-        root_exists = db.execute('SELECT 1 FROM users WHERE LOWER(email) = LOWER(?)', (ADMIN_EMAIL,)).fetchone()
-        if not root_exists:
+        columns = [column[1] for column in db.execute('PRAGMA table_info(users)').fetchall()]
+        if 'is_root' not in columns:
+            db.execute('ALTER TABLE users ADD COLUMN is_root INTEGER NOT NULL DEFAULT 0')
+
+        root_user = db.execute('SELECT * FROM users WHERE LOWER(email) = LOWER(?)', (ADMIN_EMAIL,)).fetchone()
+        if root_user is None:
             db.execute(
-                'INSERT INTO users(id, name, email, password_hash, role, created_at, active) VALUES(?, ?, ?, ?, ?, ?, 1)',
+                'INSERT INTO users(id, name, email, password_hash, role, created_at, active, is_root) VALUES(?, ?, ?, ?, ?, ?, 1, 1)',
                 (
                     str(uuid.uuid4()),
                     'Administrador',
@@ -292,6 +302,11 @@ def initialize_database() -> None:
                     'admin',
                     utc_now(),
                 ),
+            )
+        else:
+            db.execute(
+                'UPDATE users SET role = ?, is_root = 1 WHERE id = ?',
+                ('admin', root_user['id']),
             )
 
 
@@ -537,12 +552,88 @@ def session(session: str | None = Cookie(default=None, alias='admin_session')):
 
 @app.get('/api/users')
 def list_users(session: str | None = Cookie(default=None, alias='admin_session')):
-    require_session_user(session)
+    require_admin(session)
     with connection() as db:
         rows = db.execute(
-            'SELECT id, name, email, role, created_at, active FROM users WHERE active = 1 ORDER BY created_at DESC'
+            'SELECT * FROM users WHERE active = 1 ORDER BY created_at DESC'
         ).fetchall()
     return [serialize_user(row) for row in rows]
+
+
+@app.post('/api/users')
+def create_managed_user(payload: dict[str, Any], session: str | None = Cookie(default=None, alias='admin_session')):
+    current_user = require_admin(session)
+    name = str(payload.get('name', '')).strip()
+    email = str(payload.get('email', '')).strip().lower()
+    password = str(payload.get('password', ''))
+    role = str(payload.get('role', 'viewer')).strip().lower()
+
+    if not name or not email or len(password) < 6:
+        raise HTTPException(status_code=400, detail='Nombre, email y contraseña válida son obligatorios.')
+    if role not in {'admin', 'developer', 'viewer'}:
+        raise HTTPException(status_code=400, detail='El rol no es válido.')
+    if not current_user.get('is_root') and role == 'admin':
+        raise HTTPException(status_code=403, detail='Solo el administrador raíz puede crear cuentas administrativas.')
+    if get_user_by_email(email) is not None:
+        raise HTTPException(status_code=409, detail='Ya existe un usuario con ese email.')
+
+    user_id = str(uuid.uuid4())
+    now = utc_now()
+    with connection() as db:
+        db.execute(
+            'INSERT INTO users(id, name, email, password_hash, role, created_at, active, is_root) VALUES(?, ?, ?, ?, ?, ?, 1, 0)',
+            (user_id, name, email, hash_password(password), role, now),
+        )
+    user = get_user_by_id(user_id)
+    if user is None:
+        raise HTTPException(status_code=500, detail='No se pudo crear el usuario.')
+    return serialize_user(user)
+
+
+@app.patch('/api/users/{user_id}')
+def update_user(user_id: str, payload: dict[str, Any], session: str | None = Cookie(default=None, alias='admin_session')):
+    current_user = require_admin(session)
+    target = get_user_by_id(user_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail='Usuario no encontrado.')
+    if user_is_root(target):
+        raise HTTPException(status_code=403, detail='El administrador raíz es inmutable.')
+
+    next_role = str(payload.get('role', target['role'])).strip().lower()
+    next_active = payload.get('active', bool(target['active']))
+
+    if next_role not in {'admin', 'developer', 'viewer'}:
+        raise HTTPException(status_code=400, detail='El rol no es válido.')
+    if next_role == 'admin' and not current_user.get('is_root'):
+        raise HTTPException(status_code=403, detail='Solo el administrador raíz puede asignar permisos administrativos.')
+    if next_active is None:
+        next_active = bool(target['active'])
+    if not bool(next_active) and user_is_root(target):
+        raise HTTPException(status_code=403, detail='El administrador raíz no puede desactivarse.')
+
+    with connection() as db:
+        db.execute(
+            'UPDATE users SET role = ?, active = ? WHERE id = ?',
+            (next_role, int(bool(next_active)), user_id),
+        )
+    updated = get_user_by_id(user_id)
+    return serialize_user(updated)
+
+
+@app.delete('/api/users/{user_id}')
+def delete_user(user_id: str, session: str | None = Cookie(default=None, alias='admin_session')):
+    current_user = require_admin(session)
+    target = get_user_by_id(user_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail='Usuario no encontrado.')
+    if user_is_root(target):
+        raise HTTPException(status_code=403, detail='El administrador raíz es inmutable.')
+    if not current_user.get('is_root') and target['role'] == 'admin':
+        raise HTTPException(status_code=403, detail='Solo el administrador raíz puede eliminar cuentas administrativas.')
+
+    with connection() as db:
+        db.execute('UPDATE users SET active = 0 WHERE id = ?', (user_id,))
+    return {'ok': True}
 
 
 @app.post('/api/projects')

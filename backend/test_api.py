@@ -94,3 +94,50 @@ def test_register_ignores_requested_role():
         response = client.post("/api/auth/register", json=body)
         assert response.status_code == 200, response.text
         assert response.json()["role"] == "viewer"
+
+
+def test_root_admin_is_protected_and_can_create_admin_user():
+    client = build_client()
+    api.ADMIN_EMAIL = "root@xonetr.local"
+    api.ADMIN_PASSWORD = "RootPass123!"
+    api.initialize_database()
+
+    login = client.post(
+        "/api/auth/login",
+        json={"email": api.ADMIN_EMAIL, "password": api.ADMIN_PASSWORD},
+    )
+    assert login.status_code == 200, login.text
+    cookie = login.cookies.get("admin_session")
+    assert cookie
+
+    create = client.post(
+        "/api/users",
+        json={
+            "name": "Licencias",
+            "email": "licencias@xonetr.local",
+            "password": "secret123",
+            "role": "admin",
+        },
+        cookies={"admin_session": cookie},
+    )
+    assert create.status_code == 200, create.text
+    created = create.json()
+    assert created["role"] == "admin"
+    assert created["email"] == "licencias@xonetr.local"
+
+    listing = client.get("/api/users", cookies={"admin_session": cookie})
+    assert listing.status_code == 200, listing.text
+    users = listing.json()
+    root = next(user for user in users if user["email"] == api.ADMIN_EMAIL)
+    assert root["is_root"] is True
+    assert any(user["email"] == "licencias@xonetr.local" for user in users)
+
+    root_demote = client.patch(
+        f"/api/users/{root['id']}",
+        json={"role": "viewer"},
+        cookies={"admin_session": cookie},
+    )
+    assert root_demote.status_code == 403, root_demote.text
+
+    root_delete = client.delete(f"/api/users/{root['id']}", cookies={"admin_session": cookie})
+    assert root_delete.status_code == 403, root_delete.text
