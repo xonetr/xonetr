@@ -22,6 +22,11 @@ export const adminNavigationGroups:AdminNavGroup[]=[
   {label:"Precios",to:"/admin/editar/precios",icon:"tag",section:"pricing"},
   {label:"Contacto",to:"/admin/editar/contacto",icon:"mail",section:"contact"},
   ]},
+  {id:"operations",label:"Operaciones",items:[
+  {label:"Dashboard",to:"/admin/operaciones",icon:"summary"},
+  {label:"Tablero",to:"/admin/tablero",icon:"folder-kanban"},
+  {label:"Usuarios",to:"/admin/usuarios",icon:"users"},
+  ]},
   {id:"site",label:"Sitio",items:[
   {label:"Pie de página",to:"/admin/editar/footer",icon:"panel-bottom",section:"footer"},
   {label:"Ajustes del sitio",to:"/admin/ajustes",icon:"settings",section:"settings"},
@@ -29,6 +34,7 @@ export const adminNavigationGroups:AdminNavGroup[]=[
   {id:"tools",label:"Herramientas",items:[
   {label:"Medios",to:"/admin/medios",icon:"image"},
   {label:"Historial",to:"/admin/historial",icon:"history"},
+  {label:"Autorizaciones",to:"/admin/autorizaciones",icon:"key"},
   ]},
 ];
 
@@ -40,4 +46,3 @@ export function resolveAdminTitle(pathname:string){
   if(pathname==="/admin")return"Resumen";
   return allAdminNavigation.find(item=>pathname.startsWith(item.to))?.label??"Panel de administración";
 }
-

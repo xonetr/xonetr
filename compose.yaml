@@ -1,0 +1,29 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file:
+      - backend/.env
+    environment:
+      DATABASE_PATH: /app/backend/data/xonetr.sqlite3
+      MEDIA_DIRECTORY: /app/backend/data/media
+      CORS_ORIGINS: http://localhost:8010,http://127.0.0.1:8010,https://xonetr.sytes.net,http://xonetr.sytes.net
+    volumes:
+      - backend-data:/app/backend/data
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    depends_on:
+      - backend
+    ports:
+      - "8010:80"
+    environment:
+      VITE_API_BASE_URL: http://backend:8000
+
+volumes:
+  backend-data:

@@ -9,7 +9,23 @@ npm install
 npm run dev
 ```
 
-Para producción: `npm run build` y luego `npm run preview`.
+Para habilitar el backend FastAPI, consulta `backend/README.md`.
+
+Para producción con Docker y puerto 8010:
+
+```bash
+cp backend/.env.example backend/.env
+./scripts/deploy.sh up
+```
+
+La app queda accesible por:
+
+- http://xonetr.sytes.net:8010
+- http://localhost:8010
+
+La API backend queda en:
+
+- http://localhost:8000/api/health
 
 ## Estructura
 

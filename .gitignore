@@ -1,6 +1,9 @@
 node_modules/
+.venv/
 dist/
 .vite/
+__pycache__/
+*.py[cod]
 *.local
 *.tsbuildinfo
 .vscode/*launch*
@@ -14,3 +17,7 @@ dist/
 !.env.example
 
 .venv/
+backend/.env
+backend/data/*.sqlite3
+backend/data/media/*
+
