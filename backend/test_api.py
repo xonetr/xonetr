@@ -79,3 +79,18 @@ def test_create_project_and_task():
     )
     assert task.status_code == 200, task.text
     assert task.json()["title"] == "Crear hero"
+
+
+def test_register_ignores_requested_role():
+    client = build_client()
+    for index, requested in enumerate(["admin", "developer", "viewer", "owner", None]):
+        body = {
+            "name": f"User {index}",
+            "email": f"user{index}@example.com",
+            "password": "secret123",
+        }
+        if requested is not None:
+            body["role"] = requested
+        response = client.post("/api/auth/register", json=body)
+        assert response.status_code == 200, response.text
+        assert response.json()["role"] == "viewer"

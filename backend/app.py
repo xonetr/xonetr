@@ -476,7 +476,7 @@ def register_user(payload: dict[str, Any]):
     name = str(payload.get('name', '')).strip()
     email = str(payload.get('email', '')).strip().lower()
     password = str(payload.get('password', ''))
-    role = str(payload.get('role', 'developer')).strip().lower()
+    role = 'viewer'
 
     if not name or not email or len(password) < 6:
         raise HTTPException(status_code=400, detail='Nombre, email y contraseña válida son obligatorios.')
