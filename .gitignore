@@ -3,6 +3,8 @@ dist/
 .vite/
 *.local
 *.tsbuildinfo
+.vscode/*launch*
+.vscode/**/launch*
 
 # wrangler files
 .wrangler
@@ -10,3 +12,5 @@ dist/
 !.dev.vars.example
 .env*
 !.env.example
+
+.venv/
