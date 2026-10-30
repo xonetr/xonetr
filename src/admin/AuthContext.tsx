@@ -4,7 +4,7 @@ import {authProvider,type AuthSession} from "../auth";
 type AuthContextValue={session:AuthSession|null;loading:boolean;login:(email:string,password:string)=>Promise<void>;logout:()=>Promise<void>};
 const AuthContext=createContext<AuthContextValue|null>(null);
 const authEnabled=import.meta.env.VITE_ADMIN_AUTH==="true";
-const temporarySession=():AuthSession=>({email:"acceso-temporal@xonetr.local",signedInAt:new Date().toISOString()});
+const temporarySession=():AuthSession=>({email:"acceso-temporal@xonetr.local",name:"Administrador",signedInAt:new Date().toISOString()});
 
 export function AdminAuthProvider({children}:{children:ReactNode}){
   const [session,setSession]=useState<AuthSession|null>(null);const [loading,setLoading]=useState(true);

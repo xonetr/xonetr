@@ -251,6 +251,9 @@ def initialize_database() -> None:
                 created_at TEXT NOT NULL,
                 summary TEXT NOT NULL,
                 author TEXT NOT NULL,
+                changed_sections TEXT NOT NULL DEFAULT '[]',
+                author_name TEXT,
+                author_email TEXT,
                 content TEXT NOT NULL
             );
 
@@ -289,6 +292,14 @@ def initialize_database() -> None:
         columns = [column[1] for column in db.execute('PRAGMA table_info(users)').fetchall()]
         if 'is_root' not in columns:
             db.execute('ALTER TABLE users ADD COLUMN is_root INTEGER NOT NULL DEFAULT 0')
+
+        version_columns = [column[1] for column in db.execute('PRAGMA table_info(versions)').fetchall()]
+        if 'changed_sections' not in version_columns:
+            db.execute("ALTER TABLE versions ADD COLUMN changed_sections TEXT NOT NULL DEFAULT '[]'")
+        if 'author_name' not in version_columns:
+            db.execute('ALTER TABLE versions ADD COLUMN author_name TEXT')
+        if 'author_email' not in version_columns:
+            db.execute('ALTER TABLE versions ADD COLUMN author_email TEXT')
 
         root_user = db.execute('SELECT * FROM users WHERE LOWER(email) = LOWER(?)', (ADMIN_EMAIL,)).fetchone()
         if root_user is None:
@@ -1037,9 +1048,46 @@ def discard_draft(session: str | None = Cookie(default=None, alias='admin_sessio
     return {'ok': True}
 
 
+CONTENT_SECTION_LABELS = {
+    'navigation': 'Navegación',
+    'hero': 'Inicio',
+    'whatWeDo': '¿Qué hacemos?',
+    'services': '¿Qué ofrecemos?',
+    'process': '¿Cómo trabajamos?',
+    'projects': 'Proyectos',
+    'pricing': 'Precios',
+    'team': 'Equipo',
+    'purpose': '¿Qué queremos?',
+    'faq': 'FAQ',
+    'contact': 'Contacto',
+    'footer': 'Pie de página',
+    'legal': 'Textos legales',
+    'settings': 'Ajustes del sitio',
+    'brand': 'Marca',
+}
+
+
+def changed_content_sections(current: dict[str, Any], previous: dict[str, Any] | None) -> list[str]:
+    if previous is None:
+        return [CONTENT_SECTION_LABELS.get(key, key) for key in current.keys()]
+    return [
+        CONTENT_SECTION_LABELS.get(key, key)
+        for key in current.keys()
+        if current.get(key) != previous.get(key)
+    ]
+
+
+def summarize_sections(sections: list[str]) -> str:
+    if not sections:
+        return 'Publicación sin cambios'
+    if len(sections) <= 3:
+        return ', '.join(sections)
+    return f'{len(sections)} secciones modificadas'
+
+
 @app.post('/api/content/publish')
 def publish(session: str | None = Cookie(default=None, alias='admin_session')):
-    require_admin(session)
+    user = require_admin(session)
     with connection() as db:
         draft = db.execute("SELECT content FROM site_content WHERE kind = 'draft'").fetchone()
         published = db.execute("SELECT content FROM site_content WHERE kind = 'published'").fetchone()
@@ -1047,6 +1095,9 @@ def publish(session: str | None = Cookie(default=None, alias='admin_session')):
             raise HTTPException(status_code=404, detail='No hay borrador para publicar.')
 
         content = draft['content']
+        next_content = json.loads(content)
+        previous_content = json.loads(published['content']) if published else None
+        changed_sections = changed_content_sections(next_content, previous_content)
         db.execute(
             """
             INSERT INTO site_content(kind, content, updated_at) VALUES('published', ?, ?)
@@ -1054,10 +1105,18 @@ def publish(session: str | None = Cookie(default=None, alias='admin_session')):
             """,
             (content, utc_now()),
         )
-        changed = json.loads(content) != json.loads(published['content']) if published else True
         db.execute(
-            'INSERT INTO versions(id, created_at, summary, author, content) VALUES(?, ?, ?, ?, ?)',
-            (str(uuid.uuid4()), utc_now(), 'Cambios publicados' if changed else 'Publicación sin cambios', ADMIN_EMAIL, content),
+            'INSERT INTO versions(id, created_at, summary, author, changed_sections, author_name, author_email, content) VALUES(?, ?, ?, ?, ?, ?, ?, ?)',
+            (
+                str(uuid.uuid4()),
+                utc_now(),
+                summarize_sections(changed_sections),
+                user['name'],
+                json.dumps(changed_sections, ensure_ascii=False),
+                user['name'],
+                user['email'],
+                content,
+            ),
         )
         db.execute("DELETE FROM versions WHERE id NOT IN (SELECT id FROM versions ORDER BY created_at DESC LIMIT 10)")
         db.execute("DELETE FROM site_content WHERE kind = 'draft'")
@@ -1069,9 +1128,21 @@ def list_versions(session: str | None = Cookie(default=None, alias='admin_sessio
     require_admin(session)
     with connection() as db:
         rows = db.execute(
-            'SELECT id, created_at AS createdAt, summary, author FROM versions ORDER BY created_at DESC LIMIT 10'
+            'SELECT id, created_at AS createdAt, summary, author, changed_sections AS changedSections, author_name AS authorName, author_email AS authorEmail FROM versions ORDER BY created_at DESC LIMIT 10'
         ).fetchall()
-    return [dict(row) for row in rows]
+    result = []
+    for row in rows:
+        item = dict(row)
+        try:
+            item['changedSections'] = json.loads(item.get('changedSections') or '[]')
+        except json.JSONDecodeError:
+            item['changedSections'] = []
+        if not item.get('authorName'):
+            item['authorName'] = 'Administrador' if '@' in item.get('author', '') else item.get('author')
+        if not item.get('authorEmail') and '@' in item.get('author', ''):
+            item['authorEmail'] = item['author']
+        result.append(item)
+    return result
 
 
 @app.get('/api/content/versions/{version_id}')

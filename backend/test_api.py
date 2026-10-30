@@ -141,3 +141,30 @@ def test_root_admin_is_protected_and_can_create_admin_user():
 
     root_delete = client.delete(f"/api/users/{root['id']}", cookies={"admin_session": cookie})
     assert root_delete.status_code == 403, root_delete.text
+
+
+def test_publish_stores_changed_sections_and_author():
+    client = build_client()
+    login = client.post(
+        "/api/auth/login",
+        json={"email": api.ADMIN_EMAIL, "password": api.ADMIN_PASSWORD},
+    )
+    assert login.status_code == 200, login.text
+    cookie = login.cookies.get("admin_session")
+    assert cookie
+
+    first = {"hero": {"title": "Primera"}, "faq": {"items": []}}
+    second = {"hero": {"title": "Segunda"}, "faq": {"items": []}}
+    for content in (first, second):
+        saved = client.put("/api/content/draft", json=content, cookies={"admin_session": cookie})
+        assert saved.status_code == 200, saved.text
+        published = client.post("/api/content/publish", cookies={"admin_session": cookie})
+        assert published.status_code == 200, published.text
+
+    history = client.get("/api/content/versions", cookies={"admin_session": cookie})
+    assert history.status_code == 200, history.text
+    latest = history.json()[0]
+    assert latest["summary"] == "Inicio"
+    assert latest["changedSections"] == ["Inicio"]
+    assert latest["authorName"] == "Administrador"
+    assert latest["authorEmail"] == api.ADMIN_EMAIL

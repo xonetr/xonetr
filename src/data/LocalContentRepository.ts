@@ -1,6 +1,6 @@
 import {siteContent as defaultContent} from "../content";
 import {siteContentSchema,type SiteContent} from "../content/schema";
-import type {ContentRepository,MediaInfo,VersionInfo} from "./ContentRepository";
+import {getChangedSectionLabels,summarizeChangedSections,type ContentRepository,type MediaInfo,type VersionAuthor,type VersionInfo} from "./ContentRepository";
 
 const KEYS={published:"xonetr.content.published",draft:"xonetr.content.draft",versions:"xonetr.content.versions",media:"xonetr.content.media"} as const;
 const MAX_IMAGE_BYTES=2*1024*1024;
@@ -35,14 +35,14 @@ export class LocalContentRepository implements ContentRepository{
   async getPublished(){return hydrateContent(readContent(KEYS.published)??cloneDefault())}
   async getDraft(){const stored=readContent(KEYS.draft);return stored?hydrateContent(stored):this.getPublished()}
   async saveDraft(content:SiteContent){const validated=siteContentSchema.parse(content);localStorage.setItem(KEYS.draft,JSON.stringify(validated))}
-  async publish(){
+  async publish(author?:VersionAuthor){
     const content=await this.getDraft();
     const validated=siteContentSchema.parse(content);
     const previous=await this.getPublished();
-    const labels:Partial<Record<keyof SiteContent,string>>={navigation:"Navegación",hero:"Inicio",whatWeDo:"¿Qué hacemos?",services:"¿Qué ofrecemos?",process:"¿Cómo trabajamos?",projects:"Proyectos",pricing:"Precios",team:"Equipo",purpose:"¿Qué queremos?",faq:"FAQ",contact:"Contacto",footer:"Pie de página",legal:"Textos legales",settings:"Ajustes del sitio",brand:"Marca"};
-    const changed=(Object.keys(validated) as Array<keyof SiteContent>).filter(key=>JSON.stringify(validated[key])!==JSON.stringify(previous[key])).map(key=>labels[key]??String(key));
+    const changedSections=getChangedSectionLabels(validated,previous);
     localStorage.setItem(KEYS.published,JSON.stringify(validated));
-    const version:StoredVersion={id:crypto.randomUUID(),createdAt:new Date().toISOString(),summary:changed.length?`Cambios en ${changed.join(", ")}`:"Publicación sin cambios",author:"Administrador local",content:validated};
+    const authorEmail=author?.email??"administrador@local";const authorName=author?.name?.trim()||"Administrador local";
+    const version:StoredVersion={id:crypto.randomUUID(),createdAt:new Date().toISOString(),summary:summarizeChangedSections(changedSections),changedSections,author:authorName,authorName,authorEmail,content:validated};
     localStorage.setItem(KEYS.versions,JSON.stringify([version,...readVersions()].slice(0,10)));
     localStorage.removeItem(KEYS.draft);
   }

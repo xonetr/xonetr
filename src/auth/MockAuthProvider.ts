@@ -14,7 +14,7 @@ export class MockAuthProvider implements AuthProvider{
     const expectedPassword=import.meta.env.VITE_ADMIN_PASSWORD as string|undefined;
     if(!expectedEmail||!expectedPassword)throw new Error("Configura las credenciales de demostración en .env.local.");
     if(email!==expectedEmail||password!==expectedPassword)throw new Error("El correo o la contraseña no son correctos.");
-    const session:AuthSession={email,signedInAt:new Date().toISOString()};
+    const session:AuthSession={email,name:email.split("@")[0]||"Administrador",signedInAt:new Date().toISOString()};
     sessionStorage.setItem(SESSION_KEY,JSON.stringify(session));
     return session;
   }

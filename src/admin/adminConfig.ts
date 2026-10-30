@@ -23,8 +23,8 @@ export const adminNavigationGroups:AdminNavGroup[]=[
   {label:"Contacto",to:"/admin/editar/contacto",icon:"mail",section:"contact"},
   ]},
   {id:"operations",label:"Operaciones",items:[
-  {label:"Dashboard",to:"/admin/operaciones",icon:"summary"},
-  {label:"Tablero",to:"/admin/tablero",icon:"folder-kanban"},
+  {label:"Dashboard",to:"/admin/operaciones",icon:"chart-line"},
+  {label:"Tablero",to:"/admin/tablero",icon:"columns"},
   {label:"Usuarios",to:"/admin/usuarios",icon:"users"},
   ]},
   {id:"site",label:"Sitio",items:[
@@ -34,7 +34,9 @@ export const adminNavigationGroups:AdminNavGroup[]=[
   {id:"tools",label:"Herramientas",items:[
   {label:"Medios",to:"/admin/medios",icon:"image"},
   {label:"Historial",to:"/admin/historial",icon:"history"},
-  {label:"Autorizaciones",to:"/admin/autorizaciones",icon:"key"},
+  ]},
+  {id:"administration",label:"Administración",items:[
+  {label:"Autorizaciones",to:"/admin/autorizaciones",icon:"shield-key"},
   ]},
 ];
 
