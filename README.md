@@ -25,7 +25,7 @@ La app queda accesible por:
 
 La API backend queda en:
 
-- http://localhost:8000/api/health
+- http://localhost:8011/api/health
 
 ## Estructura
 
