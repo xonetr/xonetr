@@ -6,6 +6,18 @@ cd "$ROOT_DIR"
 
 ACTION="${1:-up}"
 
+if git -C "$ROOT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1 && [[ "$ACTION" != "down" ]]; then
+  BRANCH="$(git -C "$ROOT_DIR" branch --show-current)"
+
+  if [[ -n "$BRANCH" ]]; then
+    echo "Actualizando repositorio (${BRANCH})..."
+    if ! git -C "$ROOT_DIR" pull --ff-only origin "$BRANCH"; then
+      echo "❌ No se pudo actualizar el repositorio. El despliegue fue cancelado para evitar usar código desactualizado."
+      exit 1
+    fi
+  fi
+fi
+
 if ! command -v docker >/dev/null 2>&1; then
   echo "❌ Docker no está instalado o no está en PATH."
   exit 1
