@@ -3,7 +3,7 @@ import type {SiteContent} from "../content/schema";
 export type AdminNavItem={label:string;to:string;icon:string;section?:keyof SiteContent};
 export type AdminNavGroup={id:string;label:string;items:AdminNavItem[]};
 
-export const summaryNavigation:AdminNavItem={label:"Resumen",to:"/admin",icon:"summary"};
+export const summaryNavigation:AdminNavItem={label:"Actividad del proyecto",to:"/admin",icon:"chart-line"};
 
 export const adminNavigationGroups:AdminNavGroup[]=[
   {id:"presentation",label:"Presentación",items:[
@@ -23,8 +23,6 @@ export const adminNavigationGroups:AdminNavGroup[]=[
   {label:"Contacto",to:"/admin/editar/contacto",icon:"mail",section:"contact"},
   ]},
   {id:"operations",label:"Operaciones",items:[
-  {label:"Dashboard",to:"/admin/operaciones",icon:"chart-line"},
-  {label:"Tablero",to:"/admin/tablero",icon:"columns"},
   {label:"Usuarios",to:"/admin/usuarios",icon:"users"},
   ]},
   {id:"site",label:"Sitio",items:[
@@ -35,9 +33,6 @@ export const adminNavigationGroups:AdminNavGroup[]=[
   {label:"Medios",to:"/admin/medios",icon:"image"},
   {label:"Historial",to:"/admin/historial",icon:"history"},
   ]},
-  {id:"administration",label:"Administración",items:[
-  {label:"Autorizaciones",to:"/admin/autorizaciones",icon:"shield-key"},
-  ]},
 ];
 
 export const allAdminNavigation=adminNavigationGroups.flatMap(group=>group.items);
@@ -45,6 +40,6 @@ export const editableSections=allAdminNavigation.filter(item=>item.to.startsWith
 export const utilityNavigation=allAdminNavigation.filter(item=>!item.to.startsWith("/admin/editar/"));
 
 export function resolveAdminTitle(pathname:string){
-  if(pathname==="/admin")return"Resumen";
+  if(pathname==="/admin")return"Actividad del proyecto";
   return allAdminNavigation.find(item=>pathname.startsWith(item.to))?.label??"Panel de administración";
 }
