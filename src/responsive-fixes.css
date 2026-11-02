@@ -2,7 +2,6 @@
   .code-window>.corner-mark--br{display:none}
 }
 @media(max-width:480px){
-  .member-mobile .member-detail{grid-template-columns:88px minmax(0,1fr);gap:16px}
-  .member-mobile{padding-bottom:24px}
+  .member-mobile .member-detail{padding-bottom:24px;grid-template-columns:88px minmax(0,1fr);gap:16px}
   .member-detail blockquote{margin-top:12px;font-size:.9rem;line-height:1.5}
 }
