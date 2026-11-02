@@ -13,6 +13,7 @@
   "dependencies": {
     "react": "latest",
     "react-dom": "latest",
+    "react-easy-crop": "^5.5.7",
     "react-router-dom": "^7.18.4",
     "zod": "^3.25.76"
   },

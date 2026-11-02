@@ -1,7 +1,7 @@
 import type {SiteContent} from "../content/schema";
 import {siteContent as defaultContent} from "../content";
 import {siteContentSchema} from "../content/schema";
-import type {ContentRepository,MediaInfo,VersionInfo} from "./ContentRepository";
+import type {AppliedImageEdit,ContentRepository,MediaInfo,VersionInfo} from "./ContentRepository";
 
 async function request(path:string,options:RequestInit={}){
   const response=await fetch(path,{credentials:"include",...options,headers:options.headers});
@@ -33,9 +33,12 @@ export class ApiContentRepository implements ContentRepository{
   listVersions():Promise<VersionInfo[]>{return request("/api/content/versions")}
   getVersion(id:string):Promise<SiteContent>{return request(`/api/content/versions/${encodeURIComponent(id)}`)}
   restoreVersion(id:string):Promise<void>{return request(`/api/content/versions/${encodeURIComponent(id)}/restore`,{method:"POST"}).then(()=>undefined)}
-  async uploadImage(file:File):Promise<{url:string}>{
+  async uploadImage(file:File,original?:File,edit?:AppliedImageEdit):Promise<{url:string;original?:string}>{
     const form=new FormData();
     form.append("file",file);
+    if(original)form.append("original",original);
+    if(edit)form.append("edit",JSON.stringify(edit));
+    // TODO(BACKEND/R2): persistir original y editada por separado y devolver ambas URL.
     return request("/api/media",{method:"POST",body:form});
   }
   listMedia():Promise<MediaInfo[]>{return request("/api/media")}

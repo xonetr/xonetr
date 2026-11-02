@@ -83,6 +83,8 @@ Herramientas disponibles:
 - `/admin/historial`: últimas diez publicaciones locales, vista previa de una versión y restauración segura como borrador.
 - `/admin/ajustes`: título y descripción SEO, imagen Open Graph, logo, favicon, acción del menú y enlaces de navegación. Incluye vistas simuladas de Google y de una tarjeta compartida.
 
+Los campos de imagen del panel cargan de forma diferida un editor basado en `react-easy-crop`. Se eligió esta dependencia porque resuelve de forma accesible y probada el arrastre, zoom, gestos táctiles, rotación y cálculo del área de recorte sin incorporar un editor gráfico pesado. El procesamiento y la compresión final siguen ejecutándose en un canvas local; nada se envía al repositorio hasta pulsar “Aplicar”.
+
 En modo local, las imágenes se guardan como data URL y pueden agotar la cuota de `localStorage`; esto es deliberadamente una simulación. En producción, `uploadImage`, `listMedia` y `deleteImage` deben trabajar contra almacenamiento de objetos. Restaurar una versión nunca publica automáticamente: primero crea un borrador revisable.
 
 <!-- TODO: Enfocar automáticamente el campo correspondiente al hacer clic sobre un texto dentro del iframe. -->

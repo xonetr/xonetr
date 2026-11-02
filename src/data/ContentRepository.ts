@@ -24,7 +24,11 @@ export type MediaInfo={
   type:string;
   url:string;
   createdAt:string;
+  originalUrl?:string;
+  edit?:AppliedImageEdit;
 };
+
+export type AppliedImageEdit={crop:{crop:{x:number;y:number};zoom:number;rotation:number;flipH:boolean;flipV:boolean;aspect:number|null};width:number;height:number;size:number;mime:string};
 
 export interface ContentRepository{
   getPublished():Promise<SiteContent>;
@@ -35,7 +39,7 @@ export interface ContentRepository{
   listVersions():Promise<VersionInfo[]>;
   getVersion(id:string):Promise<SiteContent>;
   restoreVersion(id:string):Promise<void>;
-  uploadImage(file:File):Promise<{url:string}>;
+  uploadImage(file:File,original?:File,edit?:AppliedImageEdit):Promise<{url:string;original?:string}>;
   listMedia():Promise<MediaInfo[]>;
   deleteImage(id:string):Promise<void>;
 }

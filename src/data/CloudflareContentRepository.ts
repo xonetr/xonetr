@@ -1,5 +1,5 @@
 import type {SiteContent} from "../content/schema";
-import type {ContentRepository,MediaInfo,VersionInfo} from "./ContentRepository";
+import type {AppliedImageEdit,ContentRepository,MediaInfo,VersionInfo} from "./ContentRepository";
 
 const notConfigured=()=>Promise.reject(new Error("El repositorio Cloudflare todavía no está configurado."));
 
@@ -16,7 +16,7 @@ export class CloudflareContentRepository implements ContentRepository{
   listVersions():Promise<VersionInfo[]>{return notConfigured()}
   getVersion(_id:string):Promise<SiteContent>{return notConfigured()}
   restoreVersion(_id:string):Promise<void>{return notConfigured()}
-  uploadImage(_file:File):Promise<{url:string}>{return notConfigured()}
+  uploadImage(_file:File,_original?:File,_edit?:AppliedImageEdit):Promise<{url:string;original?:string}>{return notConfigured()}
   listMedia():Promise<MediaInfo[]>{return notConfigured()}
   deleteImage(_id:string):Promise<void>{return notConfigured()}
 }
