@@ -28,7 +28,7 @@ export type MediaInfo={
   edit?:AppliedImageEdit;
 };
 
-export type AppliedImageEdit={crop:{crop:{x:number;y:number};zoom:number;rotation:number;flipH:boolean;flipV:boolean;aspect:number|null};width:number;height:number;size:number;mime:string};
+export type AppliedImageEdit={crop:{crop:{x:number;y:number};zoom:number;rotation:number;flipH:boolean;flipV:boolean;aspect:number|null;area?:{x:number;y:number;width:number;height:number}};width:number;height:number;size:number;mime:string};
 
 export interface ContentRepository{
   getPublished():Promise<SiteContent>;

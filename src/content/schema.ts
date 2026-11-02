@@ -6,7 +6,7 @@ const optionalLinkSchema=z.string().refine(value=>!value||isSafeContentLink(valu
 const optionalAssetSchema=z.string().optional();
 const imageEditSchema=z.object({
   original:z.string(),
-  crop:z.object({crop:z.object({x:z.number(),y:z.number()}),zoom:z.number(),rotation:z.number(),flipH:z.boolean(),flipV:z.boolean(),aspect:z.number().nullable()}),
+  crop:z.object({crop:z.object({x:z.number(),y:z.number()}),zoom:z.number(),rotation:z.number(),flipH:z.boolean(),flipV:z.boolean(),aspect:z.number().nullable(),area:z.object({x:z.number(),y:z.number(),width:z.number(),height:z.number()}).optional()}),
   width:z.number().int().positive(),height:z.number().int().positive(),size:z.number().int().nonnegative(),mime:z.string(),
 }).optional();
 

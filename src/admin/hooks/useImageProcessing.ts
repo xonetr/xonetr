@@ -19,6 +19,17 @@ function hasTransparency(context:CanvasRenderingContext2D,width:number,height:nu
   return false;
 }
 
+async function transformedCanvas(source:Blob,state:ImageCropState){
+  const bitmap=await orientedBitmap(source);
+  const radians=state.rotation*Math.PI/180;
+  const sin=Math.abs(Math.sin(radians));const cos=Math.abs(Math.cos(radians));
+  const boundWidth=Math.ceil(bitmap.width*cos+bitmap.height*sin);const boundHeight=Math.ceil(bitmap.width*sin+bitmap.height*cos);
+  const transformed=document.createElement("canvas");transformed.width=boundWidth;transformed.height=boundHeight;
+  const context=transformed.getContext("2d",{willReadFrequently:true});if(!context)throw new Error("El navegador no pudo preparar la imagen.");
+  context.translate(boundWidth/2,boundHeight/2);context.rotate(radians);context.scale(state.flipH?-1:1,state.flipV?-1:1);context.drawImage(bitmap,-bitmap.width/2,-bitmap.height/2);bitmap.close();
+  return transformed;
+}
+
 export function useImageProcessing(){
   const inspect=useCallback(async(source:Blob|string)=>{
     const blob=typeof source==="string"?await fetch(source).then(response=>{if(!response.ok)throw new Error("No se pudo leer la imagen original.");return response.blob()}):source;
@@ -27,13 +38,7 @@ export function useImageProcessing(){
   },[]);
 
   const process=useCallback(async(source:Blob,cropPixels:Area,state:ImageCropState,maxSize:number|{width:number;height:number},baseName="imagen"):Promise<ImageEditorResult>=>{
-    const bitmap=await orientedBitmap(source);
-    const radians=state.rotation*Math.PI/180;
-    const sin=Math.abs(Math.sin(radians));const cos=Math.abs(Math.cos(radians));
-    const boundWidth=Math.ceil(bitmap.width*cos+bitmap.height*sin);const boundHeight=Math.ceil(bitmap.width*sin+bitmap.height*cos);
-    const transformed=document.createElement("canvas");transformed.width=boundWidth;transformed.height=boundHeight;
-    const transformedContext=transformed.getContext("2d",{willReadFrequently:true});if(!transformedContext)throw new Error("El navegador no pudo preparar la imagen.");
-    transformedContext.translate(boundWidth/2,boundHeight/2);transformedContext.rotate(radians);transformedContext.scale(state.flipH?-1:1,state.flipV?-1:1);transformedContext.drawImage(bitmap,-bitmap.width/2,-bitmap.height/2);bitmap.close();
+    const transformed=await transformedCanvas(source,state);
     let outputWidth:number;let outputHeight:number;
     if(typeof maxSize==="number"){
       const scale=Math.min(1,maxSize/Math.max(cropPixels.width,cropPixels.height));outputWidth=Math.max(1,Math.round(cropPixels.width*scale));outputHeight=Math.max(1,Math.round(cropPixels.height*scale));
@@ -55,6 +60,14 @@ export function useImageProcessing(){
     return{file,metadata:{crop:state,width:output.width,height:output.height,size:file.size,mime}};
   },[]);
 
-  return{inspect,process};
+  const renderPreview=useCallback(async(source:Blob,cropPixels:Area,state:ImageCropState)=>{
+    const transformed=await transformedCanvas(source,state);const scale=Math.min(1,360/cropPixels.width,200/cropPixels.height);
+    const preview=document.createElement("canvas");preview.width=Math.max(1,Math.round(cropPixels.width*scale));preview.height=Math.max(1,Math.round(cropPixels.height*scale));
+    const context=preview.getContext("2d");if(!context)throw new Error("No se pudo generar la vista previa.");
+    context.drawImage(transformed,cropPixels.x,cropPixels.y,cropPixels.width,cropPixels.height,0,0,preview.width,preview.height);
+    return preview;
+  },[]);
+
+  return{inspect,process,renderPreview};
 }
 

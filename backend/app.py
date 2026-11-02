@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import Cookie, FastAPI, HTTPException, UploadFile
+from fastapi import Cookie, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from cryptography.hazmat.primitives import serialization
@@ -263,6 +263,10 @@ def initialize_database() -> None:
                 size INTEGER NOT NULL,
                 type TEXT NOT NULL,
                 filename TEXT NOT NULL,
+                original_filename TEXT,
+                original_size INTEGER,
+                original_type TEXT,
+                edit TEXT,
                 created_at TEXT NOT NULL
             );
 
@@ -300,6 +304,16 @@ def initialize_database() -> None:
             db.execute('ALTER TABLE versions ADD COLUMN author_name TEXT')
         if 'author_email' not in version_columns:
             db.execute('ALTER TABLE versions ADD COLUMN author_email TEXT')
+
+        media_columns = [column[1] for column in db.execute('PRAGMA table_info(media)').fetchall()]
+        if 'original_filename' not in media_columns:
+            db.execute('ALTER TABLE media ADD COLUMN original_filename TEXT')
+        if 'original_size' not in media_columns:
+            db.execute('ALTER TABLE media ADD COLUMN original_size INTEGER')
+        if 'original_type' not in media_columns:
+            db.execute('ALTER TABLE media ADD COLUMN original_type TEXT')
+        if 'edit' not in media_columns:
+            db.execute('ALTER TABLE media ADD COLUMN edit TEXT')
 
         root_user = db.execute('SELECT * FROM users WHERE LOWER(email) = LOWER(?)', (ADMIN_EMAIL,)).fetchone()
         if root_user is None:
@@ -1172,29 +1186,60 @@ def restore_version(version_id: str, session: str | None = Cookie(default=None, 
     return {'ok': True}
 
 
-ALLOWED_TYPES = {'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/svg+xml': '.svg'}
+ALLOWED_TYPES = {'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/svg+xml': '.svg', 'image/gif': '.gif'}
+MAX_RESULT_BYTES = 2 * 1024 * 1024
+MAX_ORIGINAL_BYTES = 10 * 1024 * 1024
 
 
 @app.post('/api/media')
-async def upload_media(file: UploadFile, session: str | None = Cookie(default=None, alias='admin_session')):
+async def upload_media(
+    file: UploadFile = File(...),
+    original: UploadFile | None = File(default=None),
+    edit: str | None = Form(default=None),
+    session: str | None = Cookie(default=None, alias='admin_session'),
+):
     require_admin(session)
     extension = ALLOWED_TYPES.get(file.content_type or '')
     if extension is None:
-        raise HTTPException(status_code=400, detail='Usa una imagen PNG, JPG, WebP o SVG.')
+        raise HTTPException(status_code=400, detail='Usa una imagen PNG, JPG, WebP, SVG o GIF.')
     data = await file.read()
-    if len(data) > 2 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail='La imagen no puede superar 2 MB.')
+    passthrough = file.content_type in {'image/svg+xml', 'image/gif'}
+    if len(data) > (MAX_ORIGINAL_BYTES if passthrough else MAX_RESULT_BYTES):
+        raise HTTPException(status_code=400, detail='La imagen no puede superar 10 MB.' if passthrough else 'La imagen resultante no puede superar 2 MB.')
+
+    original_data: bytes | None = None
+    original_extension: str | None = None
+    if original is not None:
+        original_extension = ALLOWED_TYPES.get(original.content_type or '')
+        if original_extension is None:
+            raise HTTPException(status_code=400, detail='El original debe ser PNG, JPG, WebP, SVG o GIF.')
+        original_data = await original.read()
+        if len(original_data) > MAX_ORIGINAL_BYTES:
+            raise HTTPException(status_code=400, detail='La imagen original no puede superar 10 MB.')
+
+    edit_payload: dict[str, Any] | None = None
+    if edit:
+        try:
+            parsed_edit = json.loads(edit)
+            if not isinstance(parsed_edit, dict):
+                raise ValueError
+            edit_payload = parsed_edit
+        except (json.JSONDecodeError, ValueError):
+            raise HTTPException(status_code=400, detail='Los datos de edición no son válidos.')
 
     media_id = str(uuid.uuid4())
     filename = f'{media_id}{extension}'
     (MEDIA_DIRECTORY / filename).write_bytes(data)
+    original_filename = f'{media_id}-original{original_extension}' if original_data is not None and original_extension else None
+    if original_filename and original_data is not None:
+        (MEDIA_DIRECTORY / original_filename).write_bytes(original_data)
     created_at = utc_now()
     with connection() as db:
         db.execute(
-            'INSERT INTO media(id, name, size, type, filename, created_at) VALUES(?, ?, ?, ?, ?, ?)',
-            (media_id, file.filename or filename, len(data), file.content_type, filename, created_at),
+            'INSERT INTO media(id, name, size, type, filename, original_filename, original_size, original_type, edit, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            (media_id, file.filename or filename, len(data), file.content_type, filename, original_filename, len(original_data) if original_data is not None else None, original.content_type if original is not None else None, json.dumps(edit_payload, ensure_ascii=False) if edit_payload else None, created_at),
         )
-    return {'url': f'/api/media/{media_id}'}
+    return {'url': f'/api/media/{media_id}', 'original': f'/api/media/{media_id}/original' if original_filename else None}
 
 
 @app.get('/api/media')
@@ -1202,9 +1247,19 @@ def list_media(session: str | None = Cookie(default=None, alias='admin_session')
     require_admin(session)
     with connection() as db:
         rows = db.execute(
-            'SELECT id, name, size, type, created_at AS createdAt FROM media ORDER BY created_at DESC'
+            'SELECT id, name, size, type, original_filename, edit, created_at AS createdAt FROM media ORDER BY created_at DESC'
         ).fetchall()
-    return [{**dict(row), 'url': f"/api/media/{row['id']}"} for row in rows]
+    result = []
+    for row in rows:
+        item = dict(row)
+        item['url'] = f"/api/media/{row['id']}"
+        item['originalUrl'] = f"/api/media/{row['id']}/original" if item.pop('original_filename', None) else None
+        try:
+            item['edit'] = json.loads(item['edit']) if item.get('edit') else None
+        except json.JSONDecodeError:
+            item['edit'] = None
+        result.append(item)
+    return result
 
 
 @app.get('/api/media/{media_id}')
@@ -1219,15 +1274,31 @@ def get_media(media_id: str):
     return FileResponse(path, media_type=row['type'])
 
 
+@app.get('/api/media/{media_id}/original')
+def get_original_media(media_id: str):
+    with connection() as db:
+        row = db.execute('SELECT original_filename, original_type FROM media WHERE id = ?', (media_id,)).fetchone()
+    if row is None or not row['original_filename']:
+        raise HTTPException(status_code=404, detail='Archivo original no encontrado.')
+    path = MEDIA_DIRECTORY / row['original_filename']
+    if not path.exists():
+        raise HTTPException(status_code=404, detail='Archivo original no encontrado.')
+    return FileResponse(path, media_type=row['original_type'])
+
+
 @app.delete('/api/media/{media_id}')
 def delete_media(media_id: str, session: str | None = Cookie(default=None, alias='admin_session')):
     require_admin(session)
     with connection() as db:
-        row = db.execute('SELECT filename FROM media WHERE id = ?', (media_id,)).fetchone()
+        row = db.execute('SELECT filename, original_filename FROM media WHERE id = ?', (media_id,)).fetchone()
         if row is None:
             raise HTTPException(status_code=404, detail='Archivo no encontrado.')
         db.execute('DELETE FROM media WHERE id = ?', (media_id,))
     path = MEDIA_DIRECTORY / row['filename']
     if path.exists():
         path.unlink()
+    if row['original_filename']:
+        original_path = MEDIA_DIRECTORY / row['original_filename']
+        if original_path.exists():
+            original_path.unlink()
     return {'ok': True}

@@ -1,6 +1,7 @@
 import {lazy,Suspense,useEffect,useId,useRef,useState,type DragEvent,type ReactNode} from "react";
 import {isSafeContentLink} from "../../../content/schema";
 import type {AspectOption,ImageCropState,ImageEditorResult} from "../image-editor/types";
+import {readImageEdit,storeImageEdit} from "../../imageEditStore";
 
 type BaseFieldProps={label:string;help?:string;error?:string;required?:boolean};
 
@@ -23,11 +24,8 @@ export function TagsField({label,value,onChange,help,placeholder="Agregar etique
 export type ImageValue={url:string;alt:string;edit?:{original:string;crop:ImageCropState;width:number;height:number;size:number;mime:string}};
 type ImageFieldProps={label:string;value:ImageValue;onChange:(value:ImageValue)=>void;onUpload:(file:File,original?:File,edit?:Omit<NonNullable<ImageValue["edit"]>,"original">)=>Promise<{url:string;original?:string}>;help?:string;requiredAlt?:boolean;showAlt?:boolean;aspectOptions?:AspectOption[];recommended?:{width:number;height:number};maxSize?:number|{width:number;height:number};contextPreview?:"team"|"project"|"share"};
 const EditorDialog=lazy(()=>import("../image-editor/ImageEditorDialog").then(module=>({default:module.ImageEditorDialog})));
-const EDITS_KEY="xonetr.image-edits";
 
 function readDimensions(src:string,onResult:(value:{width:number;height:number}|null)=>void){const image=new Image();image.onload=()=>onResult({width:image.naturalWidth,height:image.naturalHeight});image.onerror=()=>onResult(null);image.src=src;return()=>{image.onload=null;image.onerror=null}}
-function readStoredEdit(url:string){try{const edits=JSON.parse(localStorage.getItem(EDITS_KEY)??"{}") as Record<string,ImageValue["edit"]>;return edits[url]}catch{return undefined}}
-function storeEdit(url:string,edit:NonNullable<ImageValue["edit"]>){try{const edits=JSON.parse(localStorage.getItem(EDITS_KEY)??"{}") as Record<string,ImageValue["edit"]>;localStorage.setItem(EDITS_KEY,JSON.stringify({...edits,[url]:edit}))}catch{return}}
 function formatImageSize(bytes:number){return bytes<1024*1024?`${Math.round(bytes/1024)} KB`:`${(bytes/1024/1024).toFixed(2)} MB`}
 
 export function ImageField({label,value,onChange,onUpload,help,requiredAlt=true,showAlt=true,aspectOptions,recommended,maxSize,contextPreview}:ImageFieldProps){
@@ -36,13 +34,13 @@ export function ImageField({label,value,onChange,onUpload,help,requiredAlt=true,
   const resolvedAspects=aspectOptions??(kind.includes("proyecto")?[{label:"16:10",value:16/10}]:kind==="foto"?[{label:"1:1",value:1}]:kind.includes("compartir")?[{label:"1200:630",value:1200/630}]:kind.includes("favicon")?[{label:"1:1",value:1}]:[{label:"Libre",value:null},{label:"16:9",value:16/9},{label:"1:1",value:1},{label:"4:3",value:4/3}]);
   const resolvedRecommended=recommended??(kind.includes("proyecto")?{width:1600,height:1000}:kind==="foto"?{width:800,height:800}:kind.includes("compartir")?{width:1200,height:630}:kind.includes("favicon")?{width:512,height:512}:kind.includes("respaldo")?{width:1600,height:900}:undefined);
   const resolvedMax=maxSize??(kind.includes("compartir")?{width:1200,height:630}:kind.includes("favicon")?{width:512,height:512}:1600);const resolvedContext=contextPreview??(kind.includes("proyecto")?"project":kind==="foto"?"team":kind.includes("compartir")?"share":undefined);
-  const [localEdit,setLocalEdit]=useState<ImageValue["edit"]>(()=>value.edit??(value.url?readStoredEdit(value.url):undefined));
+  const [localEdit,setLocalEdit]=useState<ImageValue["edit"]>(()=>value.edit??(value.url?readImageEdit(value.url):undefined));
   const isUneditable=!!value.url&&(value.url.toLowerCase().includes(".svg")||value.url.toLowerCase().includes(".gif")||value.url.startsWith("data:image/svg")||value.url.startsWith("data:image/gif"));
   useEffect(()=>{if(!value.url){setDimensions(null);return}return readDimensions(value.url,setDimensions)},[value.url]);
   useEffect(()=>{if(!toast)return;const timer=window.setTimeout(()=>setToast(""),2600);return()=>window.clearTimeout(timer)},[toast]);
   const accept=async(file?:File)=>{if(!file)return;setError("");inputRef.current&&(inputRef.current.value="");const allowed=["image/png","image/jpeg","image/webp","image/svg+xml","image/gif"];if(!allowed.includes(file.type)){setError("Usa una imagen PNG, JPG, WebP, SVG o GIF.");return}if(file.size>10*1024*1024){setError("La imagen de origen no puede superar 10 MB.");return}if(file.type==="image/svg+xml"||file.type==="image/gif"){setLoading(true);try{const uploaded=await onUpload(file);setLocalEdit(undefined);onChange({...value,url:uploaded.url,edit:undefined});setToast("Imagen actualizada")}catch(cause){setError(cause instanceof Error?cause.message:"No se pudo cargar la imagen.")}finally{setLoading(false)}return}setEditorSource(file)};
   const drop=(event:DragEvent<HTMLDivElement>)=>{event.preventDefault();void accept(event.dataTransfer.files[0])};
-  const apply=async(result:ImageEditorResult)=>{setLoading(true);try{const originalFile=editorSource instanceof File?editorSource:undefined;const uploaded=await onUpload(result.file,originalFile,result.metadata);const original=uploaded.original??localEdit?.original??value.edit?.original??(typeof editorSource==="string"?editorSource:value.url);const edit={...result.metadata,original};setLocalEdit(edit);storeEdit(uploaded.url,edit);onChange({...value,url:uploaded.url,edit});setEditorSource(null);setToast(`Imagen actualizada · ${edit.width}×${edit.height} px · ${formatImageSize(edit.size)}`)}catch(cause){setError(cause instanceof Error?cause.message:"No se pudo guardar la imagen.");throw cause}finally{setLoading(false)}};
+  const apply=async(result:ImageEditorResult)=>{setLoading(true);try{const originalFile=editorSource instanceof File?editorSource:undefined;const uploaded=await onUpload(result.file,originalFile,result.metadata);const original=uploaded.original??localEdit?.original??value.edit?.original??(typeof editorSource==="string"?editorSource:value.url);const edit={...result.metadata,original};setLocalEdit(edit);storeImageEdit(uploaded.url,edit);onChange({...value,url:uploaded.url,edit});setEditorSource(null);setToast(`Imagen actualizada · ${edit.width}×${edit.height} px · ${formatImageSize(edit.size)}`)}catch(cause){setError(cause instanceof Error?cause.message:"No se pudo guardar la imagen.");throw cause}finally{setLoading(false)}};
   const editSource=localEdit?.original||value.edit?.original||value.url;
   return <div className="admin-image-field">
     <div className="admin-field__heading"><label>{label}</label></div>

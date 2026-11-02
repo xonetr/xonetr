@@ -10,7 +10,9 @@ def build_client():
     temp_dir = Path(tempfile.mkdtemp())
     db_path = temp_dir / "test.sqlite3"
     api.DATABASE_PATH = db_path
+    api.MEDIA_DIRECTORY = temp_dir / "media"
     api.DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    api.MEDIA_DIRECTORY.mkdir(parents=True, exist_ok=True)
     api.initialize_database()
     return TestClient(api.app)
 
@@ -168,3 +170,33 @@ def test_publish_stores_changed_sections_and_author():
     assert latest["changedSections"] == ["Inicio"]
     assert latest["authorName"] == "Administrador"
     assert latest["authorEmail"] == api.ADMIN_EMAIL
+
+
+def test_media_keeps_original_and_edit_metadata():
+    client = build_client()
+    login = client.post("/api/auth/login", json={"email": api.ADMIN_EMAIL, "password": api.ADMIN_PASSWORD})
+    cookie = login.cookies.get("admin_session")
+    assert cookie
+
+    edit = {"crop": {"crop": {"x": 1, "y": 2}, "zoom": 1.2, "rotation": 90, "flipH": False, "flipV": True, "aspect": 1, "area": {"x": 10, "y": 20, "width": 300, "height": 300}}, "width": 512, "height": 512, "size": 6, "mime": "image/webp"}
+    uploaded = client.post(
+        "/api/media",
+        files={"file": ("editada.webp", b"edited", "image/webp"), "original": ("original.jpg", b"original", "image/jpeg")},
+        data={"edit": api.json.dumps(edit)},
+        cookies={"admin_session": cookie},
+    )
+    assert uploaded.status_code == 200, uploaded.text
+    payload = uploaded.json()
+    assert payload["original"].endswith("/original")
+    assert client.get(payload["original"]).content == b"original"
+
+    listing = client.get("/api/media", cookies={"admin_session": cookie}).json()
+    assert listing[0]["originalUrl"] == payload["original"]
+    assert listing[0]["edit"] == edit
+
+    gif = client.post(
+        "/api/media",
+        files={"file": ("animacion.gif", b"GIF89a", "image/gif")},
+        cookies={"admin_session": cookie},
+    )
+    assert gif.status_code == 200, gif.text

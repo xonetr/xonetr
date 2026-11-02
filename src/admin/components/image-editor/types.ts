@@ -7,6 +7,7 @@ export type ImageCropState={
   flipH:boolean;
   flipV:boolean;
   aspect:number|null;
+  area?:{x:number;y:number;width:number;height:number};
 };
 
 export type ImageEditMetadata={
