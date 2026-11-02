@@ -1,5 +1,6 @@
 import {useEffect,useState,type FormEvent} from "react";
 import {Toast} from "../components/Toast";
+import {AdminIcon} from "../components/AdminIcon";
 
 type ManagedUser={
   id:string;
@@ -119,7 +120,7 @@ export function UsersPage(){
         </div>
       </div>
 
-      {loading ? <p>Cargando usuarios…</p> : items.length === 0 ? <div className="admin-empty"><span aria-hidden="true">＋</span><p>No hay usuarios activos.</p></div> : (
+      {loading ? <p>Cargando usuarios…</p> : items.length === 0 ? <div className="admin-empty"><span aria-hidden="true"><AdminIcon name="plus" className="admin-symbol"/></span><p>No hay usuarios activos.</p></div> : (
         <div className="admin-table-wrap">
           <table className="admin-table">
             <thead>

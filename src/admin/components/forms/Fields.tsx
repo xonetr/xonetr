@@ -2,6 +2,7 @@ import {lazy,Suspense,useEffect,useId,useRef,useState,type DragEvent,type ReactN
 import {isSafeContentLink} from "../../../content/schema";
 import type {AspectOption,ImageCropState,ImageEditorResult} from "../image-editor/types";
 import {readImageEdit,storeImageEdit} from "../../imageEditStore";
+import {AdminIcon} from "../AdminIcon";
 
 type BaseFieldProps={label:string;help?:string;error?:string;required?:boolean};
 
@@ -19,7 +20,7 @@ export function SelectField({label,value,onChange,options,help,error}:{label:str
 
 export function ToggleField({label,checked,onChange,help,disabled=false}:{label:string;checked:boolean;onChange:(checked:boolean)=>void;help?:string;disabled?:boolean}){const id=useId();return <div className="admin-toggle-field"><button id={id} type="button" role="switch" aria-checked={checked} disabled={disabled} onClick={()=>onChange(!checked)}><span aria-hidden="true"/></button><div><label htmlFor={id}>{label}</label>{help&&<p>{help}</p>}</div></div>}
 
-export function TagsField({label,value,onChange,help,placeholder="Agregar etiqueta"}:{label:string;value:string[];onChange:(tags:string[])=>void;help?:string;placeholder?:string}){const id=useId();const [input,setInput]=useState("");const add=()=>{const tag=input.trim();if(tag&&!value.includes(tag))onChange([...value,tag]);setInput("")};return <FieldShell id={id} label={label} help={help}><div className="admin-tags"><div>{value.map(tag=><span key={tag}>{tag}<button type="button" aria-label={`Quitar ${tag}`} onClick={()=>onChange(value.filter(item=>item!==tag))}>×</button></span>)}</div><input id={id} value={input} placeholder={placeholder} onChange={event=>setInput(event.target.value)} onKeyDown={event=>{if(event.key==="Enter"||event.key===","){event.preventDefault();add()}}} onBlur={add}/></div></FieldShell>}
+export function TagsField({label,value,onChange,help,placeholder="Agregar etiqueta"}:{label:string;value:string[];onChange:(tags:string[])=>void;help?:string;placeholder?:string}){const id=useId();const [input,setInput]=useState("");const add=()=>{const tag=input.trim();if(tag&&!value.includes(tag))onChange([...value,tag]);setInput("")};return <FieldShell id={id} label={label} help={help}><div className="admin-tags"><div>{value.map(tag=><span key={tag}>{tag}<button type="button" aria-label={`Quitar ${tag}`} onClick={()=>onChange(value.filter(item=>item!==tag))}><AdminIcon name="close" className="admin-symbol"/></button></span>)}</div><input id={id} value={input} placeholder={placeholder} onChange={event=>setInput(event.target.value)} onKeyDown={event=>{if(event.key==="Enter"||event.key===","){event.preventDefault();add()}}} onBlur={add}/></div></FieldShell>}
 
 export type ImageValue={url:string;alt:string;edit?:{original:string;crop:ImageCropState;width:number;height:number;size:number;mime:string}};
 type ImageFieldProps={label:string;value:ImageValue;onChange:(value:ImageValue)=>void;onUpload:(file:File,original?:File,edit?:Omit<NonNullable<ImageValue["edit"]>,"original">)=>Promise<{url:string;original?:string}>;help?:string;requiredAlt?:boolean;showAlt?:boolean;aspectOptions:AspectOption[];recommended?:{width:number;height:number};maxSize:number|{width:number;height:number};contextPreview?:"team"|"project"|"share"};

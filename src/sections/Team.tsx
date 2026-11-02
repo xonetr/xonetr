@@ -1,5 +1,5 @@
 import {useState} from "react";
-import {GitHubIcon,LinkedInIcon} from "../components/icons";
+import {ArrowUpRight,GitHubIcon,LinkedInIcon} from "../components/icons";
 import {Reveal} from "../components/ui/Reveal";
 import {SectionHeader} from "../components/ui/SectionHeader";
 import {useSiteContent} from "../content/ContentProvider";
@@ -11,7 +11,7 @@ function SocialIcon({label}:{label:string}){
   const normalized=label.toLowerCase();
   if(normalized.includes("linkedin"))return <LinkedInIcon/>;
   if(normalized.includes("github"))return <GitHubIcon/>;
-  return <span aria-hidden="true">↗</span>;
+  return <ArrowUpRight/>;
 }
 
 function MemberDetail({member,interactive=true}:{member:Member;interactive?:boolean}){

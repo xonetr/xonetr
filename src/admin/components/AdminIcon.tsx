@@ -25,9 +25,18 @@ const paths:Record<string,ReactNode>={
   sidebar:<><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18m6-13-4 4 4 4"/></>,
   "external-link":<><path d="M14 5h5v5M19 5l-8 8"/><path d="M19 14v5H5V5h5"/></>,
   chevron:<path d="m9 18 6-6-6-6"/>,
+  "arrow-up-right":<path d="M6 18 18 6M9 6h9v9"/>,
+  "arrow-left":<path d="M20 12H4m0 0 6-6m-6 6 6 6"/>,
+  plus:<path d="M12 5v14M5 12h14"/>,
+  check:<path d="m5 12 4 4L19 6"/>,
+  "rotate-ccw":<><path d="M4 8V3m0 0h5M4 3l4 4"/><path d="M5.4 16.5A8 8 0 1 0 6 6"/></>,
+  "rotate-cw":<><path d="M20 8V3m0 0h-5m5 0-4 4"/><path d="M18.6 16.5A8 8 0 1 1 18 6"/></>,
+  "flip-horizontal":<><path d="M12 3v18" strokeDasharray="2.5 2.5"/><path d="m9 7-5 5 5 5V7ZM15 7l5 5-5 5V7Z"/></>,
+  "flip-vertical":<><path d="M3 12h18" strokeDasharray="2.5 2.5"/><path d="m7 9 5-5 5 5H7ZM7 15l5 5 5-5H7Z"/></>,
+  grip:<><circle cx="8" cy="7" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="7" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="17" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="17" r="1" fill="currentColor" stroke="none"/></>,
 };
 
-export function AdminIcon({name}:{name:string}){
+export function AdminIcon({name,className}:{name:string;className?:string}){
   const common={fill:"none",stroke:"currentColor",strokeWidth:1.6,strokeLinecap:"round" as const,strokeLinejoin:"round" as const};
-  return <svg viewBox="0 0 24 24" aria-hidden="true" {...common}>{paths[name]??paths.summary}</svg>;
+  return <svg className={className} viewBox="0 0 24 24" aria-hidden="true" {...common}>{paths[name]??paths.summary}</svg>;
 }

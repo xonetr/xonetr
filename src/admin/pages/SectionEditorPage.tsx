@@ -4,6 +4,7 @@ import type { SiteContent } from "../../content/schema";
 import { siteContentSchema } from "../../content/schema";
 import { useAdminContent } from "../AdminContentContext";
 import { editableSections } from "../adminConfig";
+import { AdminIcon } from "../components/AdminIcon";
 import { ImageField, LinkField, ListEditor, SelectField, TagsField, TextAreaField, TextField, ToggleField } from "../components/forms";
 import { storeFullPreview, type PreviewMessage } from "./PreviewPage";
 
@@ -794,7 +795,7 @@ function LivePreview({ content, section }: { content: SiteContent; section: Sect
           ))}
         </div>
         <a className="admin-link-button" href="/admin/preview?full=1" target="_blank" rel="noreferrer" aria-disabled={!valid.success} onClick={prepareFull}>
-          Abrir vista previa completa ↗
+          Abrir vista previa completa <AdminIcon name="arrow-up-right" className="admin-symbol" />
         </a>
       </div>
       {!valid.success && (
