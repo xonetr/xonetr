@@ -46,7 +46,7 @@ export function useImageProcessing(){
     const output=document.createElement("canvas");output.width=outputWidth;output.height=outputHeight;
     const context=output.getContext("2d",{willReadFrequently:true});if(!context)throw new Error("El navegador no pudo exportar la imagen.");
     context.drawImage(transformed,cropPixels.x,cropPixels.y,cropPixels.width,cropPixels.height,0,0,outputWidth,outputHeight);
-    const transparent=hasTransparency(context,Math.min(outputWidth,512),Math.min(outputHeight,512));
+    const transparent=hasTransparency(context,outputWidth,outputHeight);
     let mime=transparent?"image/png":"image/webp";let quality=0.85;let blob=await canvasBlob(output,mime,quality);
     if(!blob&&mime==="image/webp"){mime="image/jpeg";blob=await canvasBlob(output,mime,quality)}
     while(blob&&blob.size>TWO_MB&&(output.width>320||output.height>320)){

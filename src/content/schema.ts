@@ -57,7 +57,7 @@ export const siteContentSchema=z.object({
     terms:z.object({title:z.string(),date:z.string(),paragraphs:z.array(z.string())}),
   }),
   settings:z.object({
-    siteTitle:z.string(),metaDescription:z.string(),ogImage:optionalAssetSchema,ogImageEdit:imageEditSchema,logo:optionalAssetSchema,logoEdit:imageEditSchema,favicon:optionalAssetSchema,faviconEdit:imageEditSchema,
+    siteTitle:z.string(),metaDescription:z.string(),ogImage:optionalAssetSchema,ogImageAlt:z.string().optional(),ogImageEdit:imageEditSchema,logo:optionalAssetSchema,logoAlt:z.string().optional(),logoEdit:imageEditSchema,favicon:optionalAssetSchema,faviconAlt:z.string().optional(),faviconEdit:imageEditSchema,
     menuAction:z.object({label:z.string(),href:linkSchema}),
   }).optional(),
 });
