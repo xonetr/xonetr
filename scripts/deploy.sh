@@ -47,11 +47,27 @@ case "$ACTION" in
     # a frontend container from a previous deployment is still active.
     docker compose down --remove-orphans >/dev/null
 
+    BACKEND_HOST_PORT=""
+    for port in {8011..8020}; do
+      if ! ss -H -ltn "( sport = :${port} )" 2>/dev/null | grep -q .; then
+        BACKEND_HOST_PORT="$port"
+        break
+      fi
+    done
+
+    if [[ -z "$BACKEND_HOST_PORT" ]]; then
+      echo "❌ No hay puertos disponibles entre 8011 y 8020 para el backend."
+      exit 1
+    fi
+
+    export BACKEND_HOST_PORT
+    echo "🔧 Backend publicado en el puerto: ${BACKEND_HOST_PORT}"
+
     if ! docker compose up --build -d; then
       echo
       echo "❌ No se pudo iniciar el frontend."
 
-      for port in 8010 8011; do
+      for port in 8010 "$BACKEND_HOST_PORT"; do
         docker_containers="$(docker ps --filter "publish=${port}" --format '{{.Names}} ({{.Ports}})' 2>/dev/null || true)"
         if [[ -n "$docker_containers" ]]; then
           echo "Puerto ${port} ocupado por:"
@@ -60,7 +76,7 @@ case "$ACTION" in
       done
 
       if command -v ss >/dev/null 2>&1; then
-        listeners="$(ss -H -ltnp "( sport = :8010 or sport = :8011 )" 2>/dev/null || true)"
+        listeners="$(ss -H -ltnp "( sport = :8010 or sport = :${BACKEND_HOST_PORT} )" 2>/dev/null || true)"
         if [[ -n "$listeners" ]]; then
           echo "Oyentes del sistema:"
           echo "$listeners"
@@ -70,7 +86,7 @@ case "$ACTION" in
     fi
     echo
     echo "🌐 Frontend: http://localhost:8010"
-    echo "🔧 Backend:  http://localhost:8011/api/health"
+    echo "🔧 Backend:  http://localhost:${BACKEND_HOST_PORT}/api/health"
     echo "📦 Volúmenes: backend-data, frontend-node-modules"
     ;;
   down)

@@ -12,7 +12,7 @@ services:
     volumes:
       - backend-data:/app/backend/data
     ports:
-      - "8011:8000"
+      - "${BACKEND_HOST_PORT:-8011}:8000"
 
   frontend:
     build:
