@@ -12,6 +12,8 @@ from typing import Any
 from fastapi import Cookie, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
+from cryptography.exceptions import InvalidSignature
+from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 from pydantic import BaseModel, Field
@@ -27,6 +29,19 @@ def project_path(value: str | Path) -> Path:
 DATABASE_PATH = project_path(os.getenv('DATABASE_PATH', 'backend/data/xonetr.sqlite3'))
 MEDIA_DIRECTORY = project_path(os.getenv('MEDIA_DIRECTORY', 'backend/data/media'))
 SESSION_SECRET = os.getenv('SESSION_SECRET', 'development-session-secret-change-me')
+
+
+def secret_from_env(name: str) -> str | None:
+    """Lee NAME o, si existe, el archivo indicado en NAME_FILE (secretos de Docker)."""
+    file_path = os.getenv(f'{name}_FILE')
+    if file_path:
+        return Path(file_path).read_text(encoding='utf-8').strip()
+    return os.getenv(name)
+
+
+# Clave con la que se cifran en reposo las claves privadas Ed25519. Debe vivir fuera de la base de datos
+# (variable de entorno o secreto de Docker): una copia de la base no alcanza para firmar autorizaciones.
+SIGNING_KEY_SECRET = secret_from_env('SIGNING_KEY_SECRET') or SESSION_SECRET
 ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'admin@xonetr.com')
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'admin123')
 CORS_ORIGINS = [
@@ -79,6 +94,46 @@ def encode_base64(data: bytes) -> str:
 
 def decode_base64(data: str) -> bytes:
     return base64.urlsafe_b64decode(data + '=' * (-len(data) % 4))
+
+
+ENCRYPTED_KEY_PREFIX = 'fernet:'
+
+
+def key_encryption() -> Fernet:
+    digest = hashlib.sha256(b'xonetr-signing-key|' + SIGNING_KEY_SECRET.encode()).digest()
+    return Fernet(base64.urlsafe_b64encode(digest))
+
+
+def seal_private_key(private_raw: bytes) -> str:
+    return ENCRYPTED_KEY_PREFIX + key_encryption().encrypt(private_raw).decode()
+
+
+def unseal_private_key(stored: str) -> bytes:
+    if not stored.startswith(ENCRYPTED_KEY_PREFIX):
+        # Formato anterior (sin cifrar); protect_stored_signing_keys lo migra al arrancar.
+        return decode_base64(stored)
+    try:
+        return key_encryption().decrypt(stored[len(ENCRYPTED_KEY_PREFIX):].encode())
+    except InvalidToken as error:
+        raise RuntimeError(
+            'No se pudo descifrar la clave de firma: SIGNING_KEY_SECRET no coincide con el usado al crearla.'
+        ) from error
+
+
+def protect_stored_signing_keys(db: sqlite3.Connection) -> None:
+    """Cifra las claves privadas que quedaron guardadas en texto plano por versiones anteriores."""
+    rows = db.execute(
+        'SELECT id, private_key FROM signing_keys WHERE private_key NOT LIKE ?', (ENCRYPTED_KEY_PREFIX + '%',)
+    ).fetchall()
+    for row in rows:
+        db.execute(
+            'UPDATE signing_keys SET private_key = ? WHERE id = ?',
+            (seal_private_key(decode_base64(row['private_key'])), row['id']),
+        )
+
+
+def canonical_json(value: dict[str, Any]) -> bytes:
+    return json.dumps(value, ensure_ascii=False, separators=(',', ':'), sort_keys=True).encode()
 
 
 def sign(value: str) -> str:
@@ -290,8 +345,30 @@ def initialize_database() -> None:
                 revoked_at TEXT,
                 revoked_by TEXT
             );
+
+            -- Credenciales con las que el backend de cada cliente consulta renovaciones y revocaciones.
+            -- Solo se guarda el hash del secreto; el secreto se muestra una única vez al crearlo o rotarlo.
+            CREATE TABLE IF NOT EXISTS license_clients (
+                id TEXT PRIMARY KEY,
+                project TEXT NOT NULL,
+                subject TEXT NOT NULL,
+                name TEXT NOT NULL DEFAULT '',
+                secret_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                created_by TEXT,
+                last_seen_at TEXT,
+                revoked_at TEXT
+            );
             """
         )
+
+        authorization_columns = [column[1] for column in db.execute('PRAGMA table_info(authorizations)').fetchall()]
+        if 'renewed_from' not in authorization_columns:
+            db.execute('ALTER TABLE authorizations ADD COLUMN renewed_from TEXT')
+        if 'revoke_reason' not in authorization_columns:
+            db.execute('ALTER TABLE authorizations ADD COLUMN revoke_reason TEXT')
+
+        protect_stored_signing_keys(db)
 
         columns = [column[1] for column in db.execute('PRAGMA table_info(users)').fetchall()]
         if 'is_root' not in columns:
@@ -338,36 +415,76 @@ def initialize_database() -> None:
 initialize_database()
 
 
+# ---------------------------------------------------------------- autorizaciones (licencias) firmadas con Ed25519
+#
+# Formato del token: base64url(JSON canónico de los claims) + "." + base64url(firma Ed25519 de esos bytes).
+# Claims: iss="xonetr", kid (clave que firmó), jti (id de la autorización), project (p. ej. "escfutboll"),
+# sub (ID del cliente), scope (módulos permitidos), iat y exp (ISO 8601 UTC), y renews (jti renovado, opcional).
+#
+# Rotación: siempre se firma con la clave más reciente no revocada. Las anteriores siguen publicadas y
+# verificando las autorizaciones vigentes que firmaron; solo revocar una clave invalida lo que firmó.
+
+def generate_signing_key(db: sqlite3.Connection) -> tuple[str, Ed25519PrivateKey]:
+    private_key = Ed25519PrivateKey.generate()
+    private_raw = private_key.private_bytes(
+        serialization.Encoding.Raw,
+        serialization.PrivateFormat.Raw,
+        serialization.NoEncryption(),
+    )
+    public_raw = private_key.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+    key_id = str(uuid.uuid4())
+    db.execute(
+        'INSERT INTO signing_keys(id, private_key, public_key, created_at) VALUES(?, ?, ?, ?)',
+        (key_id, seal_private_key(private_raw), encode_base64(public_raw), utc_now()),
+    )
+    return key_id, private_key
+
+
 def signing_key_pair() -> tuple[str, Ed25519PrivateKey, Ed25519PublicKey]:
+    """Clave activa para firmar (la más reciente no revocada); se crea si no hay ninguna."""
     with connection() as db:
         row = db.execute(
             'SELECT id, private_key FROM signing_keys WHERE revoked_at IS NULL ORDER BY created_at DESC LIMIT 1'
         ).fetchone()
         if row is None:
-            private_key = Ed25519PrivateKey.generate()
-            private_raw = private_key.private_bytes(
-                serialization.Encoding.Raw,
-                serialization.PrivateFormat.Raw,
-                serialization.NoEncryption(),
-            )
-            public_raw = private_key.public_key().public_bytes(
-                serialization.Encoding.Raw,
-                serialization.PublicFormat.Raw,
-            )
-            key_id = str(uuid.uuid4())
-            db.execute(
-                'INSERT INTO signing_keys(id, private_key, public_key, created_at) VALUES(?, ?, ?, ?)',
-                (
-                    key_id,
-                    base64.urlsafe_b64encode(private_raw).decode().rstrip('='),
-                    base64.urlsafe_b64encode(public_raw).decode().rstrip('='),
-                    utc_now(),
-                ),
-            )
+            key_id, private_key = generate_signing_key(db)
             return key_id, private_key, private_key.public_key()
-        private_raw = base64.urlsafe_b64decode(row['private_key'] + '=' * (-len(row['private_key']) % 4))
-        private_key = Ed25519PrivateKey.from_private_bytes(private_raw)
-        return row['id'], private_key, private_key.public_key()
+    private_key = Ed25519PrivateKey.from_private_bytes(unseal_private_key(row['private_key']))
+    return row['id'], private_key, private_key.public_key()
+
+
+def verification_key(key_id: str) -> Ed25519PublicKey | None:
+    """Clave pública de `key_id` si existe y no fue revocada (sirve para claves ya rotadas)."""
+    with connection() as db:
+        row = db.execute(
+            'SELECT public_key FROM signing_keys WHERE id = ? AND revoked_at IS NULL', (key_id,)
+        ).fetchone()
+    return Ed25519PublicKey.from_public_bytes(decode_base64(row['public_key'])) if row else None
+
+
+def published_keys() -> list[dict[str, Any]]:
+    signing_key_pair()  # garantiza que exista al menos una clave
+    with connection() as db:
+        rows = db.execute(
+            'SELECT id, public_key, created_at, revoked_at FROM signing_keys ORDER BY created_at DESC'
+        ).fetchall()
+    active_id = next((row['id'] for row in rows if row['revoked_at'] is None), None)
+    return [
+        {
+            'keyId': row['id'],
+            'algorithm': 'Ed25519',
+            'publicKey': row['public_key'],
+            'createdAt': row['created_at'],
+            'status': 'revoked' if row['revoked_at'] else 'active' if row['id'] == active_id else 'retired',
+            'revokedAt': row['revoked_at'],
+        }
+        for row in rows
+    ]
+
+
+def parse_utc(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
 
 
 @app.get('/api/health')
@@ -376,15 +493,122 @@ def health() -> dict[str, str]:
 
 
 class IssueAuthorization(BaseModel):
-    project: str = Field(min_length=1)
-    subject: str = Field(min_length=1)
+    project: str = Field(min_length=1, max_length=80)
+    subject: str = Field(min_length=1, max_length=120)
     scopes: list[str] = Field(default_factory=list)
     expires_at: str = Field(min_length=1)
 
 
+class RenewAuthorization(BaseModel):
+    expires_at: str = Field(min_length=1)
+    scopes: list[str] | None = None
+    revoke_previous: bool = False
+
+
+class RevokeAuthorization(BaseModel):
+    reason: str = Field(default='', max_length=500)
+
+
+class CreateLicenseClient(BaseModel):
+    project: str = Field(min_length=1, max_length=80)
+    subject: str = Field(min_length=1, max_length=120)
+    name: str = Field(default='', max_length=200)
+
+
+class LicenseCheck(BaseModel):
+    project: str = Field(min_length=1, max_length=80)
+    jti: str | None = None
+
+
 def authorization_token(payload: dict[str, Any], signature: str) -> str:
-    raw_payload = json.dumps(payload, ensure_ascii=False, separators=(',', ':'), sort_keys=True).encode()
-    return f'{encode_base64(raw_payload)}.{signature}'
+    return f'{encode_base64(canonical_json(payload))}.{signature}'
+
+
+def parse_future_expiry(value: str) -> datetime:
+    try:
+        expires_at = parse_utc(value)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail='La fecha de expiración no es válida.') from error
+    if expires_at <= datetime.now(timezone.utc):
+        raise HTTPException(status_code=422, detail='La autorización debe vencer en el futuro.')
+    return expires_at.astimezone(timezone.utc)
+
+
+def create_authorization(
+    project: str,
+    subject: str,
+    scopes: list[str],
+    expires_at: datetime,
+    renewed_from: str | None = None,
+) -> dict[str, Any]:
+    authorization_id = str(uuid.uuid4())
+    key_id, private_key, _ = signing_key_pair()
+    clean_scopes = sorted({scope.strip() for scope in scopes if scope.strip()})
+    claims: dict[str, Any] = {
+        'iss': 'xonetr',
+        'kid': key_id,
+        'jti': authorization_id,
+        'project': project.strip(),
+        'sub': subject.strip(),
+        'scope': clean_scopes,
+        'iat': utc_now(),
+        'exp': expires_at.isoformat(),
+    }
+    if renewed_from:
+        claims['renews'] = renewed_from
+    signature = encode_base64(private_key.sign(canonical_json(claims)))
+    with connection() as db:
+        db.execute(
+            """
+            INSERT INTO authorizations
+            (id, project, subject, scopes, payload, signature, issued_at, expires_at, renewed_from)
+            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                authorization_id,
+                claims['project'],
+                claims['sub'],
+                json.dumps(clean_scopes),
+                json.dumps(claims, ensure_ascii=False),
+                signature,
+                claims['iat'],
+                claims['exp'],
+                renewed_from,
+            ),
+        )
+    return {
+        'id': authorization_id,
+        'project': claims['project'],
+        'subject': claims['sub'],
+        'scopes': clean_scopes,
+        'issuedAt': claims['iat'],
+        'expiresAt': claims['exp'],
+        'renewedFrom': renewed_from,
+        'keyId': key_id,
+        'token': authorization_token(claims, signature),
+    }
+
+
+def authorization_status(row: sqlite3.Row) -> str:
+    """active | expired | revoked | invalid (firma no verificable o clave revocada)."""
+    if row['revoked_at']:
+        return 'revoked'
+    claims = json.loads(row['payload'])
+    public_key = verification_key(claims.get('kid', ''))
+    if public_key is None:
+        return 'invalid'
+    try:
+        public_key.verify(decode_base64(row['signature']), canonical_json(claims))
+    except InvalidSignature:
+        return 'invalid'
+    return 'expired' if parse_utc(claims['exp']) <= datetime.now(timezone.utc) else 'active'
+
+
+def revoke_authorization_row(db: sqlite3.Connection, authorization_id: str, by: str, reason: str) -> None:
+    db.execute(
+        'UPDATE authorizations SET revoked_at = ?, revoked_by = ?, revoke_reason = ? WHERE id = ? AND revoked_at IS NULL',
+        (utc_now(), by, reason or None, authorization_id),
+    )
 
 
 @app.get('/api/authorization/public-key')
@@ -394,120 +618,269 @@ def authorization_public_key():
     return {'keyId': key_id, 'algorithm': 'Ed25519', 'publicKey': encode_base64(public_raw)}
 
 
+@app.get('/api/authorization/public-keys')
+def authorization_public_keys():
+    """Todas las claves públicas: la activa, las rotadas (siguen verificando) y las revocadas (ya no)."""
+    return {'keys': published_keys()}
+
+
+@app.post('/api/authorization/keys/rotate')
+def rotate_signing_key(session: str | None = Cookie(default=None, alias='admin_session')):
+    require_admin(session)
+    with connection() as db:
+        key_id, _ = generate_signing_key(db)
+    return {'keyId': key_id, 'keys': published_keys()}
+
+
+@app.post('/api/authorization/keys/{key_id}/revoke')
+def revoke_signing_key(key_id: str, session: str | None = Cookie(default=None, alias='admin_session')):
+    """Para una clave comprometida: invalida todas las autorizaciones que firmó."""
+    require_admin(session)
+    with connection() as db:
+        row = db.execute('SELECT id FROM signing_keys WHERE id = ?', (key_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail='La clave no existe.')
+        db.execute('UPDATE signing_keys SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL', (utc_now(), key_id))
+    return {'ok': True, 'keys': published_keys()}
+
+
 @app.post('/api/authorizations')
 def issue_authorization(payload: IssueAuthorization, session: str | None = Cookie(default=None, alias='admin_session')):
     admin = require_admin(session)
-    try:
-        expires_at = datetime.fromisoformat(payload.expires_at.replace('Z', '+00:00'))
-    except ValueError as error:
-        raise HTTPException(status_code=422, detail='La fecha de expiración no es válida.') from error
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    if expires_at <= datetime.now(timezone.utc):
-        raise HTTPException(status_code=422, detail='La autorización debe vencer en el futuro.')
-
-    authorization_id = str(uuid.uuid4())
-    key_id, private_key, _ = signing_key_pair()
-    claims = {
-        'iss': 'xonetr',
-        'kid': key_id,
-        'jti': authorization_id,
-        'project': payload.project,
-        'sub': payload.subject,
-        'scope': payload.scopes,
-        'iat': utc_now(),
-        'exp': expires_at.isoformat(),
-    }
-    payload_bytes = json.dumps(claims, ensure_ascii=False, separators=(',', ':'), sort_keys=True).encode()
-    signature = encode_base64(private_key.sign(payload_bytes))
-    with connection() as db:
-        db.execute(
-            """
-            INSERT INTO authorizations
-            (id, project, subject, scopes, payload, signature, issued_at, expires_at)
-            VALUES(?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                authorization_id,
-                payload.project,
-                payload.subject,
-                json.dumps(payload.scopes),
-                json.dumps(claims, ensure_ascii=False),
-                signature,
-                claims['iat'],
-                claims['exp'],
-            ),
-        )
-    return {
-        'id': authorization_id,
-        'project': payload.project,
-        'subject': payload.subject,
-        'scopes': payload.scopes,
-        'issuedAt': claims['iat'],
-        'expiresAt': claims['exp'],
-        'issuer': admin['email'],
-        'token': authorization_token(claims, signature),
-    }
+    expires_at = parse_future_expiry(payload.expires_at)
+    issued = create_authorization(payload.project, payload.subject, payload.scopes, expires_at)
+    return {**issued, 'issuer': admin['email']}
 
 
 @app.get('/api/authorizations')
-def list_authorizations(session: str | None = Cookie(default=None, alias='admin_session')):
+def list_authorizations(
+    project: str | None = None,
+    subject: str | None = None,
+    session: str | None = Cookie(default=None, alias='admin_session'),
+):
+    require_admin(session)
+    query = 'SELECT * FROM authorizations WHERE 1 = 1'
+    params: list[str] = []
+    if project:
+        query += ' AND project = ?'
+        params.append(project)
+    if subject:
+        query += ' AND subject = ?'
+        params.append(subject)
+    with connection() as db:
+        rows = db.execute(query + ' ORDER BY issued_at DESC', params).fetchall()
+    return [
+        {
+            'id': row['id'],
+            'project': row['project'],
+            'subject': row['subject'],
+            'scopes': json.loads(row['scopes']),
+            'issuedAt': row['issued_at'],
+            'expiresAt': row['expires_at'],
+            'revokedAt': row['revoked_at'],
+            'revokedBy': row['revoked_by'],
+            'revokeReason': row['revoke_reason'],
+            'renewedFrom': row['renewed_from'],
+            'status': authorization_status(row),
+        }
+        for row in rows
+    ]
+
+
+@app.get('/api/authorizations/{authorization_id}/token')
+def authorization_token_for_admin(authorization_id: str, session: str | None = Cookie(default=None, alias='admin_session')):
+    """Vuelve a entregar el token para cargarlo en el canal de secretos del despliegue del cliente."""
     require_admin(session)
     with connection() as db:
-        rows = db.execute(
-            """
-            SELECT id, project, subject, scopes, issued_at AS issuedAt, expires_at AS expiresAt,
-                   revoked_at AS revokedAt, revoked_by AS revokedBy
-            FROM authorizations ORDER BY issued_at DESC
-            """
-        ).fetchall()
-    return [{**dict(row), 'scopes': json.loads(row['scopes']), 'status': 'revoked' if row['revokedAt'] else 'active'} for row in rows]
+        row = db.execute('SELECT * FROM authorizations WHERE id = ?', (authorization_id,)).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail='La autorización no existe.')
+    return {'id': row['id'], 'status': authorization_status(row), 'token': authorization_token(json.loads(row['payload']), row['signature'])}
+
+
+@app.post('/api/authorizations/{authorization_id}/renew')
+def renew_authorization(
+    authorization_id: str,
+    payload: RenewAuthorization,
+    session: str | None = Cookie(default=None, alias='admin_session'),
+):
+    """Emite una autorización nueva para el mismo cliente y producto. La anterior sigue vigente hasta su
+    vencimiento (así un backend que todavía no se enteró de la renovación no queda bloqueado), salvo que se
+    pida revocarla."""
+    admin = require_admin(session)
+    with connection() as db:
+        previous = db.execute('SELECT * FROM authorizations WHERE id = ?', (authorization_id,)).fetchone()
+    if previous is None:
+        raise HTTPException(status_code=404, detail='La autorización no existe.')
+    if previous['revoked_at']:
+        raise HTTPException(status_code=409, detail='No se puede renovar una autorización revocada; emití una nueva.')
+    expires_at = parse_future_expiry(payload.expires_at)
+    if expires_at <= parse_utc(previous['expires_at']):
+        raise HTTPException(status_code=422, detail='La renovación debe vencer después que la autorización actual.')
+    scopes = payload.scopes if payload.scopes is not None else json.loads(previous['scopes'])
+    renewed = create_authorization(previous['project'], previous['subject'], scopes, expires_at, previous['id'])
+    if payload.revoke_previous:
+        with connection() as db:
+            revoke_authorization_row(db, previous['id'], admin['email'], f'Reemplazada por {renewed["id"]}')
+    return {**renewed, 'issuer': admin['email']}
 
 
 @app.post('/api/authorizations/{authorization_id}/revoke')
-def revoke_authorization(authorization_id: str, session: str | None = Cookie(default=None, alias='admin_session')):
+def revoke_authorization(
+    authorization_id: str,
+    payload: RevokeAuthorization | None = None,
+    session: str | None = Cookie(default=None, alias='admin_session'),
+):
     admin = require_admin(session)
     with connection() as db:
         row = db.execute('SELECT id FROM authorizations WHERE id = ?', (authorization_id,)).fetchone()
         if row is None:
             raise HTTPException(status_code=404, detail='La autorización no existe.')
-        db.execute(
-            'UPDATE authorizations SET revoked_at = ?, revoked_by = ? WHERE id = ?',
-            (utc_now(), admin['email'], authorization_id),
-        )
+        revoke_authorization_row(db, authorization_id, admin['email'], payload.reason if payload else '')
     return {'ok': True}
 
 
 @app.get('/api/authorizations/{authorization_id}/verify')
 def verify_authorization(authorization_id: str):
     with connection() as db:
-        row = db.execute(
-            'SELECT payload, signature, revoked_at, expires_at FROM authorizations WHERE id = ?',
-            (authorization_id,),
-        ).fetchone()
+        row = db.execute('SELECT * FROM authorizations WHERE id = ?', (authorization_id,)).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail='La autorización no existe.')
-
     claims = json.loads(row['payload'])
-    key_id, _, public_key = signing_key_pair()
-    try:
-        public_key.verify(
-            decode_base64(row['signature']),
-            json.dumps(claims, ensure_ascii=False, separators=(',', ':'), sort_keys=True).encode(),
-        )
-    except Exception as error:
-        raise HTTPException(status_code=400, detail='La firma criptográfica no es válida.') from error
-
-    revoked = row['revoked_at'] is not None
-    expires_at = datetime.fromisoformat(claims['exp'].replace('Z', '+00:00'))
-    expired = expires_at <= datetime.now(timezone.utc)
-    valid = not revoked and not expired and claims['kid'] == key_id
+    status = authorization_status(row)
+    if status == 'invalid':
+        raise HTTPException(status_code=400, detail='La firma criptográfica no es válida o su clave fue revocada.')
     return {
-        'valid': valid,
-        'status': 'revoked' if revoked else 'expired' if expired else 'active',
+        'valid': status == 'active',
+        'status': status,
         'authorization': claims,
         'algorithm': 'Ed25519',
         'keyId': claims['kid'],
+    }
+
+
+# ---------------------------------------------------------------- credenciales de los backends de cliente
+
+def license_api_key(client_id: str, secret: str) -> str:
+    return f'lic_{client_id}.{secret}'
+
+
+def hash_license_secret(secret: str) -> str:
+    # El secreto es aleatorio de 256 bits: un SHA-256 alcanza (no es una contraseña elegida por una persona).
+    return hashlib.sha256(secret.encode()).hexdigest()
+
+
+def require_license_client(request: Request) -> sqlite3.Row:
+    header = request.headers.get('authorization', '')
+    scheme, _, credential = header.partition(' ')
+    if scheme.lower() != 'bearer' or not credential.startswith('lic_') or '.' not in credential:
+        raise HTTPException(status_code=401, detail='Credencial de licencia requerida.')
+    client_id, secret = credential[4:].split('.', 1)
+    with connection() as db:
+        row = db.execute('SELECT * FROM license_clients WHERE id = ?', (client_id,)).fetchone()
+        if row is None or row['revoked_at'] or not hmac.compare_digest(row['secret_hash'], hash_license_secret(secret)):
+            raise HTTPException(status_code=401, detail='Credencial de licencia inválida.')
+        db.execute('UPDATE license_clients SET last_seen_at = ? WHERE id = ?', (utc_now(), client_id))
+    return row
+
+
+def serialize_license_client(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        'id': row['id'],
+        'project': row['project'],
+        'subject': row['subject'],
+        'name': row['name'],
+        'createdAt': row['created_at'],
+        'createdBy': row['created_by'],
+        'lastSeenAt': row['last_seen_at'],
+        'revokedAt': row['revoked_at'],
+        'status': 'revoked' if row['revoked_at'] else 'active',
+    }
+
+
+@app.post('/api/license-clients')
+def create_license_client(payload: CreateLicenseClient, session: str | None = Cookie(default=None, alias='admin_session')):
+    """Crea la credencial de un backend de cliente. La apiKey se devuelve solo esta vez."""
+    admin = require_admin(session)
+    client_id = str(uuid.uuid4())
+    secret = encode_base64(os.urandom(32))
+    with connection() as db:
+        db.execute(
+            'INSERT INTO license_clients(id, project, subject, name, secret_hash, created_at, created_by) VALUES(?, ?, ?, ?, ?, ?, ?)',
+            (client_id, payload.project.strip(), payload.subject.strip(), payload.name.strip(),
+             hash_license_secret(secret), utc_now(), admin['email']),
+        )
+        row = db.execute('SELECT * FROM license_clients WHERE id = ?', (client_id,)).fetchone()
+    return {**serialize_license_client(row), 'apiKey': license_api_key(client_id, secret)}
+
+
+@app.get('/api/license-clients')
+def list_license_clients(session: str | None = Cookie(default=None, alias='admin_session')):
+    require_admin(session)
+    with connection() as db:
+        rows = db.execute('SELECT * FROM license_clients ORDER BY created_at DESC').fetchall()
+    return [serialize_license_client(row) for row in rows]
+
+
+@app.post('/api/license-clients/{client_id}/rotate-secret')
+def rotate_license_client_secret(client_id: str, session: str | None = Cookie(default=None, alias='admin_session')):
+    require_admin(session)
+    secret = encode_base64(os.urandom(32))
+    with connection() as db:
+        row = db.execute('SELECT * FROM license_clients WHERE id = ?', (client_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail='La credencial no existe.')
+        if row['revoked_at']:
+            raise HTTPException(status_code=409, detail='La credencial está revocada.')
+        db.execute('UPDATE license_clients SET secret_hash = ? WHERE id = ?', (hash_license_secret(secret), client_id))
+    return {**serialize_license_client(row), 'apiKey': license_api_key(client_id, secret)}
+
+
+@app.post('/api/license-clients/{client_id}/revoke')
+def revoke_license_client(client_id: str, session: str | None = Cookie(default=None, alias='admin_session')):
+    require_admin(session)
+    with connection() as db:
+        row = db.execute('SELECT id FROM license_clients WHERE id = ?', (client_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail='La credencial no existe.')
+        db.execute('UPDATE license_clients SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL', (utc_now(), client_id))
+    return {'ok': True}
+
+
+@app.post('/api/licenses/check')
+def check_license(payload: LicenseCheck, request: Request):
+    """Consulta del backend de un cliente (autenticada con su apiKey). Devuelve:
+    - current: estado de la autorización que el cliente tiene en uso (jti);
+    - latest: la autorización vigente que vence más tarde para ese cliente y producto (la renovación, si hay);
+    - revoked: autorizaciones revocadas de ese cliente, para que deje de aceptarlas;
+    - keys: claves públicas (activas, rotadas y revocadas) para verificar firmas localmente.
+    Una credencial solo ve las autorizaciones de su propio cliente y producto."""
+    client = require_license_client(request)
+    if payload.project != client['project']:
+        raise HTTPException(status_code=403, detail='La credencial no corresponde a este producto.')
+    with connection() as db:
+        rows = db.execute(
+            'SELECT * FROM authorizations WHERE project = ? AND subject = ? ORDER BY expires_at DESC',
+            (client['project'], client['subject']),
+        ).fetchall()
+    statuses = {row['id']: authorization_status(row) for row in rows}
+    latest = next((row for row in rows if statuses[row['id']] == 'active'), None)
+    current = None
+    if payload.jti:
+        row = next((row for row in rows if row['id'] == payload.jti), None)
+        current = {'jti': payload.jti, 'status': statuses[row['id']] if row else 'unknown'}
+    return {
+        'serverTime': utc_now(),
+        'project': client['project'],
+        'subject': client['subject'],
+        'current': current,
+        'latest': None if latest is None else {
+            'jti': latest['id'],
+            'expiresAt': latest['expires_at'],
+            'token': authorization_token(json.loads(latest['payload']), latest['signature']),
+        },
+        'revoked': [row['id'] for row in rows if statuses[row['id']] in ('revoked', 'invalid')],
+        'keys': published_keys(),
     }
 
 
