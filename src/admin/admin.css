@@ -151,3 +151,10 @@
 .project-metric__ticks{width:100%;justify-content:initial}.project-metric__ticks i{flex:1;text-align:center}.project-metric__ticks i:first-child{text-align:left}.project-metric__ticks i:last-child{text-align:right}
 .project-metric__chart svg{cursor:crosshair}.project-metric__point{pointer-events:none;animation:project-point-in 120ms ease-out both}@keyframes project-point-in{from{opacity:0}to{opacity:1}}
 .project-metric__chart{position:relative}.project-metric__tooltip{position:absolute;z-index:2;min-width:52px;padding:8px 11px;border:1px solid #d4d1db;border-radius:10px;background:#f0eef3;color:#26242c;box-shadow:0 8px 20px #0007;transform:translate(-50%,calc(-100% - 10px));text-align:center;font:700 .8rem/1 Inter,sans-serif;letter-spacing:-.01em;pointer-events:none;animation:project-tooltip-in 120ms ease-out both}.project-metric__tooltip::after{position:absolute;top:100%;left:50%;width:7px;height:7px;border-right:1px solid #d4d1db;border-bottom:1px solid #d4d1db;background:#f0eef3;content:"";transform:translate(-50%,-4px) rotate(45deg)}@keyframes project-tooltip-in{from{opacity:0;transform:translate(-50%,calc(-100% - 6px))}to{opacity:1;transform:translate(-50%,calc(-100% - 10px))}}
+.authorization-status--expired,.authorization-status--invalid{border-color:#6b5a2c;background:#241e10;color:#e6c77d}
+.authorization-status--expired::before,.authorization-status--invalid::before{background:#d9b04f}
+.authorization-actions{white-space:nowrap}
+.authorization-actions button+button{margin-left:6px}
+.authorization-actions button:not(:last-child){border-color:var(--border);background:var(--surface-2);color:var(--text)}
+.authorization-actions button:disabled{cursor:not-allowed;opacity:.45}
+.authorization-table td>span:not(.authorization-status){display:block;margin-top:5px;color:#77768a;font:500 .64rem/1.35 "JetBrains Mono",monospace}

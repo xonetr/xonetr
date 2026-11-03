@@ -24,6 +24,7 @@ export const adminNavigationGroups:AdminNavGroup[]=[
   ]},
   {id:"operations",label:"Operaciones",items:[
   {label:"Usuarios",to:"/admin/usuarios",icon:"users"},
+  {label:"Autorizaciones",to:"/admin/autorizaciones",icon:"shield-key"},
   ]},
   {id:"site",label:"Sitio",items:[
   {label:"Pie de página",to:"/admin/editar/footer",icon:"panel-bottom",section:"footer"},
