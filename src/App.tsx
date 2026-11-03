@@ -3,6 +3,7 @@ import {Header} from "./components/Header";
 import {SiteMetadata} from "./components/SiteMetadata";
 import {Preloader} from "./components/Preloader";
 import {useSiteContent} from "./content/ContentProvider";
+import {useEffect} from "react";
 import {usePreloader} from "./hooks/usePreloader";
 import {Contact} from "./sections/Contact";
 import {Hero} from "./sections/Hero";
@@ -16,6 +17,14 @@ import {Team} from "./sections/Team";
 import {WhatWeDo} from "./sections/WhatWeDo";
 
 export default function App(){
+  useEffect(()=>{
+    const sessionKey="xonetr.analytics.session";
+    let sessionId=sessionStorage.getItem(sessionKey);
+    if(!sessionId){sessionId=crypto.randomUUID();sessionStorage.setItem(sessionKey,sessionId)}
+    if(sessionStorage.getItem("xonetr.analytics.recorded"))return;
+    sessionStorage.setItem("xonetr.analytics.recorded","1");
+    fetch("/api/analytics/visit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({event_type:"page_view",path:window.location.pathname,session_id:sessionId,referrer:document.referrer||null}),keepalive:true}).catch(()=>{});
+  },[]);
   const siteContent=useSiteContent();
   const path=window.location.pathname.replace(/\/$/,"")||"/";
   const logo=siteContent.settings?.logo||"/assets/xonetr-logo.png";

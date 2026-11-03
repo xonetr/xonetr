@@ -16,6 +16,7 @@ type Priority="Baja"|"Media"|"Alta";
 type Task={id:string;title:string;assignee:string;priority:Priority;column:ColumnId;color:string};
 
 const STORAGE_KEY="xonetr.admin.project-activity.tasks";
+type AnalyticsSummary={total_visits:number;unique_visitors:number;active_projects:number;open_tasks:number;visits_by_day:Array<{day:string;total:number}>;visit_change_percent:number;published_changes_month:number;published_changes_week:number;last_published_at:string|null};
 const columns:Array<{id:ColumnId;label:string}>=[
   {id:"backlog",label:"Backlog"},
   {id:"in_progress",label:"En curso"},
@@ -101,19 +102,27 @@ function AddTaskDialog({open,onClose,onAdd}:{open:boolean;onClose:()=>void;onAdd
 
 export function ProjectActivityPage(){
   const [tasks,setTasks]=useState<Task[]>(readTasks);const [dialogOpen,setDialogOpen]=useState(false);const [announcement,setAnnouncement]=useState("");
+  const [analytics,setAnalytics]=useState<AnalyticsSummary|null>(null);
+  const [analyticsError,setAnalyticsError]=useState("");
   const sensors=useSensors(useSensor(PointerSensor,{activationConstraint:{distance:6}}),useSensor(KeyboardSensor));
   useEffect(()=>{try{localStorage.setItem(STORAGE_KEY,JSON.stringify(tasks))}catch{}},[tasks]);
+  useEffect(()=>{
+    fetch("/api/analytics/summary?range_days=7",{credentials:"include"})
+      .then(async response=>{if(!response.ok)throw new Error("No se pudieron cargar las estadísticas.");return response.json()})
+      .then((data:AnalyticsSummary)=>setAnalytics(data))
+      .catch(error=>setAnalyticsError(error instanceof Error?error.message:"No se pudieron cargar las estadísticas."));
+  },[]);
   const moveToColumn=(taskId:string,column:ColumnId)=>setTasks(current=>current.map(task=>task.id===taskId?{...task,column}:task));
   const moveWithArrow=(taskId:string,direction:-1|1)=>setTasks(current=>current.map(task=>{if(task.id!==taskId)return task;const currentIndex=columns.findIndex(column=>column.id===task.column);const next=columns[Math.max(0,Math.min(columns.length-1,currentIndex+direction))];if(next.id!==task.column)setAnnouncement(`${task.title} movida a ${next.label}`);return{...task,column:next.id}}));
   const onDragEnd=({active,over}:DragEndEvent)=>{if(!over||!columns.some(column=>column.id===over.id))return;const destination=over.id as ColumnId;const task=tasks.find(item=>item.id===active.id);if(task&&task.column!==destination){moveToColumn(String(active.id),destination);setAnnouncement(`${task.title} movida a ${columns.find(column=>column.id===destination)?.label}`)}};
   const addTask=(task:Omit<Task,"id"|"color">)=>setTasks(current=>[...current,{...task,id:`task-${Date.now()}`,color:assigneeColors[current.length%assigneeColors.length]}]);
   return <div className="project-activity">
     <header className="project-activity__header"><div><p className="admin-kicker">// OPERACIONES</p><h2>Actividad del proyecto</h2><p>Una vista simple del ritmo del sitio y las tareas del equipo.</p></div><button type="button" className="admin-button admin-button--primary" onClick={()=>setDialogOpen(true)}>Agregar tarea</button></header>
-    <aside className="project-sample-note"><strong>Datos de ejemplo.</strong> Se conectará a datos reales cuando el equipo defina el backend.</aside>
-    <section className="project-metrics" aria-label="Métricas de ejemplo">
-      <article><div><p>Visitas al sitio <span>(7 días)</span></p><strong>1.284</strong><small>+12% vs. semana anterior</small></div><TrendChart id="visits" line="M4 62 C14 55 22 45 33 48 S48 67 60 57 S74 35 86 39 S100 48 111 30 S129 19 140 24 S151 17 156 12" area="M4 62 C14 55 22 45 33 48 S48 67 60 57 S74 35 86 39 S100 48 111 30 S129 19 140 24 S151 17 156 12 L156 72 L4 72 Z" label="Gráfica de visitas de lunes a domingo, con tendencia general ascendente" formatValue={ratio=>String(Math.round(120+ratio*140))} ticks={["Lun","Mié","Vie","Dom"]}/></article>
-      <article><div><p>Cambios publicados <span>este mes</span></p><strong>18</strong><small>5 durante esta semana</small></div><TrendChart id="changes" line="M4 64 C16 64 22 59 32 59 S48 51 58 53 S72 42 82 43 S96 31 106 33 S121 25 131 26 S145 16 156 17" area="M4 64 C16 64 22 59 32 59 S48 51 58 53 S72 42 82 43 S96 31 106 33 S121 25 131 26 S145 16 156 17 L156 72 L4 72 Z" label="Gráfica acumulada de publicaciones durante el mes" formatValue={ratio=>String(Math.round(ratio*18))} ticks={["1","10","20","30"]}/></article>
-      <article><div><p>Tiempo desde la última publicación</p><strong>2 h 14 min</strong><small>Hoy, 10:32</small></div><TrendChart id="publish-time" line="M4 25 C14 25 21 31 31 29 S47 20 58 31 S73 48 84 43 S99 34 109 44 S124 59 135 53 S149 43 156 49" area="M4 25 C14 25 21 31 31 29 S47 20 58 31 S73 48 84 43 S99 34 109 44 S124 59 135 53 S149 43 156 49 L156 72 L4 72 Z" label="Gráfica de tiempo entre publicaciones durante el día" formatValue={ratio=>`${(0.5+ratio*3.5).toFixed(1)}h`} ticks={["09h","12h","15h","Ahora"]}/></article>
+    {analyticsError&&<aside className="project-sample-note">{analyticsError}</aside>}
+    <section className="project-metrics" aria-label="Métricas reales">
+      <article><div><p>Visitas al sitio <span>(7 días)</span></p><strong>{analytics?.total_visits.toLocaleString("es")??"—"}</strong><small>{analytics ? `${analytics.visit_change_percent>=0?"+" : ""}${analytics.visit_change_percent}% vs. semana anterior` : "Cargando estadísticas…"}</small></div><TrendChart id="visits" line="M4 62 C14 55 22 45 33 48 S48 67 60 57 S74 35 86 39 S100 48 111 30 S129 19 140 24 S151 17 156 12" area="M4 62 C14 55 22 45 33 48 S48 67 60 57 S74 35 86 39 S100 48 111 30 S129 19 140 24 S151 17 156 12 L156 72 L4 72 Z" label="Visitas registradas durante los últimos siete días" formatValue={ratio=>String(Math.round(ratio*(analytics?.total_visits??0)))} ticks={["Lun","Mié","Vie","Dom"]}/></article>
+      <article><div><p>Cambios publicados <span>este mes</span></p><strong>{analytics?.published_changes_month??"—"}</strong><small>{analytics?.published_changes_week??0} durante esta semana · {analytics?.open_tasks??0} tareas abiertas</small></div><TrendChart id="changes" line="M4 64 C16 64 22 59 32 59 S48 51 58 53 S72 42 82 43 S96 31 106 33 S121 25 131 26 S145 16 156 17" area="M4 64 C16 64 22 59 32 59 S48 51 58 53 S72 42 82 43 S96 31 106 33 S121 25 131 26 S145 16 156 17 L156 72 L4 72 Z" label="Cambios publicados durante el mes" formatValue={ratio=>String(Math.round(ratio*(analytics?.published_changes_month??0)))} ticks={["1","10","20","30"]}/></article>
+      <article><div><p>Tiempo desde la última publicación</p><strong>{analytics?.last_published_at ? `${Math.max(0,Math.floor((Date.now()-new Date(analytics.last_published_at).getTime())/3600000))} h` : "Sin publicaciones"}</strong><small>{analytics?.last_published_at ? new Date(analytics.last_published_at).toLocaleString("es") : "Todavía no hay cambios registrados"}</small></div><TrendChart id="publish-time" line="M4 25 C14 25 21 31 31 29 S47 20 58 31 S73 48 84 43 S99 34 109 44 S124 59 135 53 S149 43 156 49" area="M4 25 C14 25 21 31 31 29 S47 20 58 31 S73 48 84 43 S99 34 109 44 S124 59 135 53 S149 43 156 49 L156 72 L4 72 Z" label="Tiempo desde la última publicación" formatValue={ratio=>`${(ratio*24).toFixed(1)}h`} ticks={["09h","12h","15h","Ahora"]}/></article>
     </section>
     <section className="project-board" aria-labelledby="project-board-title"><div className="project-board__heading"><div><p className="admin-kicker">// FLUJO DE TRABAJO</p><h2 id="project-board-title">Tablero del proyecto</h2></div><p>Arrastra las tarjetas o usa ← y → cuando tengan el foco.</p></div>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}><div className="project-columns">{columns.map(column=><KanbanColumn key={column.id} column={column} tasks={tasks.filter(task=>task.column===column.id)} onMove={moveWithArrow}/>)}</div></DndContext>

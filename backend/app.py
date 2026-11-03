@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import Cookie, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Cookie, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from cryptography.hazmat.primitives import serialization
@@ -959,14 +959,15 @@ def create_task_note(task_id: str, payload: dict[str, Any], session: str | None 
 
 
 @app.post('/api/analytics/visit')
-def record_visit(payload: dict[str, Any]):
+def record_visit(payload: dict[str, Any], request: Request):
     event_type = str(payload.get('event_type', 'page_view')).strip().lower() or 'page_view'
     path = str(payload.get('path', '/')).strip() or '/'
     project_id = payload.get('project_id')
     session_id = payload.get('session_id')
     referrer = payload.get('referrer')
     user_agent = payload.get('user_agent')
-    ip = payload.get('ip')
+    forwarded_for = request.headers.get('x-forwarded-for')
+    ip = forwarded_for.split(',', 1)[0].strip() if forwarded_for else request.client.host if request.client else None
     user_id = payload.get('user_id')
 
     if project_id is not None:
@@ -987,6 +988,8 @@ def analytics_summary(range_days: int = 7, session: str | None = Cookie(default=
     require_session_user(session)
     days = max(1, min(int(range_days), 365))
     since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    previous_since = (datetime.now(timezone.utc) - timedelta(days=days * 2)).isoformat()
+    month_start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
 
     with connection() as db:
         total_visits = db.execute('SELECT COUNT(*) AS value FROM visit_events WHERE created_at >= ?', (since,)).fetchone()['value']
@@ -1007,6 +1010,25 @@ def analytics_summary(range_days: int = 7, session: str | None = Cookie(default=
             """,
             (since,),
         ).fetchall()
+        previous_visits = db.execute(
+            'SELECT COUNT(*) AS value FROM visit_events WHERE created_at >= ? AND created_at < ?',
+            (previous_since, since),
+        ).fetchone()['value']
+        published_changes_month = db.execute(
+            'SELECT COUNT(*) AS value FROM versions WHERE created_at >= ?',
+            (month_start,),
+        ).fetchone()['value']
+        published_changes_week = db.execute(
+            'SELECT COUNT(*) AS value FROM versions WHERE created_at >= ?',
+            (since,),
+        ).fetchone()['value']
+        last_published = db.execute(
+            'SELECT created_at FROM versions ORDER BY created_at DESC LIMIT 1'
+        ).fetchone()
+
+    visit_change = 0
+    if previous_visits:
+        visit_change = round(((total_visits - previous_visits) / previous_visits) * 100)
 
     return {
         'range_days': days,
@@ -1016,6 +1038,10 @@ def analytics_summary(range_days: int = 7, session: str | None = Cookie(default=
         'open_tasks': open_tasks,
         'task_status': [{'status': row['status'], 'total': row['total']} for row in task_status],
         'visits_by_day': [{'day': row['day'], 'total': row['total']} for row in visits_by_day],
+        'visit_change_percent': visit_change,
+        'published_changes_month': published_changes_month,
+        'published_changes_week': published_changes_week,
+        'last_published_at': last_published['created_at'] if last_published else None,
     }
 
 
