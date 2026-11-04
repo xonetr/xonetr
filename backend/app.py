@@ -706,7 +706,7 @@ def renew_authorization(
 ):
     """Emite una autorización nueva para el mismo cliente y producto. La anterior sigue vigente hasta su
     vencimiento (así un backend que todavía no se enteró de la renovación no queda bloqueado), salvo que se
-    pida revocarla."""
+    pida revocarla. Con revoke_previous también sirve para cambiar (incluso acortar) el vencimiento."""
     admin = require_admin(session)
     with connection() as db:
         previous = db.execute('SELECT * FROM authorizations WHERE id = ?', (authorization_id,)).fetchone()
@@ -715,7 +715,8 @@ def renew_authorization(
     if previous['revoked_at']:
         raise HTTPException(status_code=409, detail='No se puede renovar una autorización revocada; emití una nueva.')
     expires_at = parse_future_expiry(payload.expires_at)
-    if expires_at <= parse_utc(previous['expires_at']):
+    # Acortar solo es seguro si la anterior se revoca: si no, seguiría valiendo hasta su vencimiento más largo.
+    if not payload.revoke_previous and expires_at <= parse_utc(previous['expires_at']):
         raise HTTPException(status_code=422, detail='La renovación debe vencer después que la autorización actual.')
     scopes = payload.scopes if payload.scopes is not None else json.loads(previous['scopes'])
     renewed = create_authorization(previous['project'], previous['subject'], scopes, expires_at, previous['id'])
