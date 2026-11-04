@@ -103,6 +103,17 @@ def test_renewal_issues_linked_authorization_and_keeps_previous_until_expiry():
     assert statuses == {first["id"]: "active", body["id"]: "active"}
 
 
+def test_renewal_with_revoke_previous_can_shorten_expiry():
+    client = admin_client()
+    first = issue(client, days=60)
+    shorter = client.post(
+        f"/api/authorizations/{first['id']}/renew", json={"expires_at": in_days(10), "revoke_previous": True}
+    )
+    assert shorter.status_code == 200, shorter.text
+    statuses = {a["id"]: a["status"] for a in client.get("/api/authorizations?subject=club-a").json()}
+    assert statuses == {first["id"]: "revoked", shorter.json()["id"]: "active"}
+
+
 def test_admin_endpoints_require_admin():
     client = build_client()
     assert client.post("/api/authorization/keys/rotate").status_code == 401
