@@ -144,6 +144,9 @@
 /* Ajustes cálidos y desaturados para la actividad. */
 .project-priority{display:inline-flex;padding:5px 8px;border:1px solid;border-radius:999px;align-items:center;gap:5px;font:600 .6rem/1 Inter,sans-serif;text-transform:none}.project-priority::before{width:5px;height:5px;border-radius:50%;background:currentColor;content:"";opacity:.72}.project-priority.is-alta{border-color:#5d474b;background:#251d1f;color:#c3a0a4}.project-priority.is-media{border-color:#5b5444;background:#242119;color:#bdb091}.project-priority.is-baja{border-color:#40564e;background:#19211e;color:#9db5ad}
 @media(max-width:1280px){.project-metrics article{grid-template-columns:none}.project-metrics small{padding-top:0}}
+
+.project-dialog footer.has-delete .project-dialog__delete{margin-right:auto}
+@media(max-width:420px){.project-dialog footer.has-delete .project-dialog__delete{margin:8px 0 0}}
 @media(max-width:760px){.project-metrics article{min-height:220px;grid-template-columns:none}}
 .project-metric__ticks{width:100%;justify-content:initial}.project-metric__ticks i{flex:1;text-align:center}.project-metric__ticks i:first-child{text-align:left}.project-metric__ticks i:last-child{text-align:right}
 .project-metric__chart svg{cursor:crosshair}.project-metric__point{pointer-events:none;animation:project-point-in 120ms ease-out both}@keyframes project-point-in{from{opacity:0}to{opacity:1}}

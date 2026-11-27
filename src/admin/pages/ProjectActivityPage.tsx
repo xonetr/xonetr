@@ -10,6 +10,7 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import {useEffect,useRef,useState,type FormEvent,type KeyboardEvent,type PointerEvent as ReactPointerEvent} from "react";
+import {ConfirmDialog} from "../components/ConfirmDialog";
 
 type ColumnId="backlog"|"in_progress"|"review"|"done";
 type Priority="Baja"|"Media"|"Alta";
@@ -64,44 +65,46 @@ function TrendChart({id,line,area,label,ticks,formatValue}:{id:string;line:strin
   </div>;
 }
 
-function TaskCard({task,onMove}:{task:Task;onMove:(taskId:string,direction:-1|1)=>void}){
+function TaskCard({task,onMove,onEdit}:{task:Task;onMove:(taskId:string,direction:-1|1)=>void;onEdit:(task:Task)=>void}){
   const {attributes,listeners,setNodeRef,transform,isDragging}=useDraggable({id:task.id,data:{column:task.column}});
   const style=transform?{transform:`translate3d(${transform.x}px, ${transform.y}px, 0)`}:undefined;
   const onKeyDown=(event:KeyboardEvent<HTMLButtonElement>)=>{
     if(event.key!=="ArrowLeft"&&event.key!=="ArrowRight")return;
     event.preventDefault();event.stopPropagation();onMove(task.id,event.key==="ArrowLeft"?-1:1);
   };
-  return <button ref={setNodeRef} type="button" className={`project-task ${isDragging?"is-dragging":""}`} style={style} {...listeners} {...attributes} onKeyDown={onKeyDown} aria-label={`${task.title}. Responsable: ${task.assignee}. Prioridad ${task.priority}. Usa flecha izquierda o derecha para moverla de columna.`}>
+  return <button ref={setNodeRef} type="button" className={`project-task ${isDragging?"is-dragging":""}`} style={style} {...listeners} {...attributes} onKeyDown={onKeyDown} onClick={()=>{if(!isDragging)onEdit(task)}} aria-label={`${task.title}. Responsable: ${task.assignee}. Prioridad ${task.priority}. Pulsa para editarla; usa flecha izquierda o derecha para moverla de columna.`}>
     <strong>{task.title}</strong>
     <span className="project-task__meta"><span className="project-task__person"><i style={{background:task.color}} aria-hidden="true">{initials(task.assignee)}</i><span>{task.assignee}</span></span><span className={`project-priority is-${task.priority.toLowerCase()}`}>{task.priority}</span></span>
   </button>;
 }
 
-function KanbanColumn({column,tasks,onMove}:{column:{id:ColumnId;label:string};tasks:Task[];onMove:(taskId:string,direction:-1|1)=>void}){
+function KanbanColumn({column,tasks,onMove,onEdit}:{column:{id:ColumnId;label:string};tasks:Task[];onMove:(taskId:string,direction:-1|1)=>void;onEdit:(task:Task)=>void}){
   const {setNodeRef,isOver}=useDroppable({id:column.id});
   return <section ref={setNodeRef} className={`project-column ${isOver?"is-over":""}`} aria-labelledby={`column-${column.id}`}>
     <header><h3 id={`column-${column.id}`}>{column.label}</h3><span aria-label={`${tasks.length} tareas`}>{tasks.length}</span></header>
-    <div className="project-column__tasks">{tasks.map(task=><TaskCard key={task.id} task={task} onMove={onMove}/>)}{tasks.length===0&&<p className="project-column__empty">Arrastra una tarea aquí</p>}</div>
+    <div className="project-column__tasks">{tasks.map(task=><TaskCard key={task.id} task={task} onMove={onMove} onEdit={onEdit}/>)}{tasks.length===0&&<p className="project-column__empty">Arrastra una tarea aquí</p>}</div>
   </section>;
 }
 
-function AddTaskDialog({open,onClose,onAdd}:{open:boolean;onClose:()=>void;onAdd:(task:Omit<Task,"id"|"color">)=>void}){
+function TaskDialog({open,task,onClose,onSave,onRequestDelete}:{open:boolean;task:Task|null;onClose:()=>void;onSave:(task:Omit<Task,"id"|"color">)=>void;onRequestDelete:(task:Task)=>void}){
   const firstInput=useRef<HTMLInputElement>(null);
   const [title,setTitle]=useState("");const [assignee,setAssignee]=useState("");const [priority,setPriority]=useState<Priority>("Media");const [column,setColumn]=useState<ColumnId>("backlog");
-  useEffect(()=>{if(!open)return;firstInput.current?.focus();const close=(event:globalThis.KeyboardEvent)=>{if(event.key==="Escape")onClose()};document.addEventListener("keydown",close);return()=>document.removeEventListener("keydown",close)},[open,onClose]);
+  useEffect(()=>{if(!open)return;setTitle(task?.title??"");setAssignee(task?.assignee??"");setPriority(task?.priority??"Media");setColumn(task?.column??"backlog");requestAnimationFrame(()=>firstInput.current?.focus())},[open,task]);
+  useEffect(()=>{if(!open)return;const close=(event:globalThis.KeyboardEvent)=>{if(event.key==="Escape")onClose()};document.addEventListener("keydown",close);return()=>document.removeEventListener("keydown",close)},[open,onClose]);
   if(!open)return null;
-  const submit=(event:FormEvent)=>{event.preventDefault();if(!title.trim()||!assignee.trim())return;onAdd({title:title.trim(),assignee:assignee.trim(),priority,column});setTitle("");setAssignee("");setPriority("Media");setColumn("backlog");onClose()};
-  return <div className="project-dialog-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)onClose()}}><section className="project-dialog" role="dialog" aria-modal="true" aria-labelledby="new-task-title"><header><div><p className="admin-kicker">// NUEVA TAREA</p><h2 id="new-task-title">Agregar tarea</h2></div><button type="button" className="project-dialog__close" onClick={onClose} aria-label="Cerrar formulario">×</button></header><form onSubmit={submit}>
+  const submit=(event:FormEvent)=>{event.preventDefault();if(!title.trim()||!assignee.trim())return;onSave({title:title.trim(),assignee:assignee.trim(),priority,column});onClose()};
+  const titleId=task?"edit-task-title":"new-task-title";
+  return <div className="project-dialog-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)onClose()}}><section className="project-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}><header><div><p className="admin-kicker">{task?"// EDITAR TAREA":"// NUEVA TAREA"}</p><h2 id={titleId}>{task?"Editar tarea":"Agregar tarea"}</h2></div><button type="button" className="project-dialog__close" onClick={onClose} aria-label="Cerrar formulario">×</button></header><form onSubmit={submit}>
     <label>Título<input ref={firstInput} value={title} onChange={event=>setTitle(event.target.value)} required maxLength={100}/></label>
     <label>Responsable<input value={assignee} onChange={event=>setAssignee(event.target.value)} required maxLength={60}/></label>
     <label>Prioridad<select value={priority} onChange={event=>setPriority(event.target.value as Priority)}><option>Baja</option><option>Media</option><option>Alta</option></select></label>
     <label>Columna<select value={column} onChange={event=>setColumn(event.target.value as ColumnId)}>{columns.map(item=><option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
-    <footer><button type="button" className="admin-button admin-button--ghost" onClick={onClose}>Cancelar</button><button type="submit" className="admin-button admin-button--primary">Agregar tarea</button></footer>
+    <footer className={task?"has-delete":""}>{task&&<button type="button" className="admin-button admin-button--danger project-dialog__delete" onClick={()=>onRequestDelete(task)}>Eliminar</button>}<button type="button" className="admin-button admin-button--ghost" onClick={onClose}>Cancelar</button><button type="submit" className="admin-button admin-button--primary">{task?"Guardar cambios":"Agregar tarea"}</button></footer>
   </form></section></div>;
 }
 
 export function ProjectActivityPage(){
-  const [tasks,setTasks]=useState<Task[]>(readTasks);const [dialogOpen,setDialogOpen]=useState(false);const [announcement,setAnnouncement]=useState("");
+  const [tasks,setTasks]=useState<Task[]>(readTasks);const [dialogOpen,setDialogOpen]=useState(false);const [editingTask,setEditingTask]=useState<Task|null>(null);const [deleteCandidate,setDeleteCandidate]=useState<Task|null>(null);const [announcement,setAnnouncement]=useState("");
   const [analytics,setAnalytics]=useState<AnalyticsSummary|null>(null);
   const [analyticsError,setAnalyticsError]=useState("");
   const sensors=useSensors(useSensor(PointerSensor,{activationConstraint:{distance:6}}),useSensor(KeyboardSensor));
@@ -115,19 +118,27 @@ export function ProjectActivityPage(){
   const moveToColumn=(taskId:string,column:ColumnId)=>setTasks(current=>current.map(task=>task.id===taskId?{...task,column}:task));
   const moveWithArrow=(taskId:string,direction:-1|1)=>setTasks(current=>current.map(task=>{if(task.id!==taskId)return task;const currentIndex=columns.findIndex(column=>column.id===task.column);const next=columns[Math.max(0,Math.min(columns.length-1,currentIndex+direction))];if(next.id!==task.column)setAnnouncement(`${task.title} movida a ${next.label}`);return{...task,column:next.id}}));
   const onDragEnd=({active,over}:DragEndEvent)=>{if(!over||!columns.some(column=>column.id===over.id))return;const destination=over.id as ColumnId;const task=tasks.find(item=>item.id===active.id);if(task&&task.column!==destination){moveToColumn(String(active.id),destination);setAnnouncement(`${task.title} movida a ${columns.find(column=>column.id===destination)?.label}`)}};
-  const addTask=(task:Omit<Task,"id"|"color">)=>setTasks(current=>[...current,{...task,id:`task-${Date.now()}`,color:assigneeColors[current.length%assigneeColors.length]}]);
+  const openNewTask=()=>{setEditingTask(null);setDialogOpen(true)};
+  const openEditTask=(task:Task)=>{setEditingTask(task);setDialogOpen(true)};
+  const saveTask=(draft:Omit<Task,"id"|"color">)=>setTasks(current=>{
+    if(editingTask){setAnnouncement(`${draft.title} actualizada`);return current.map(task=>task.id===editingTask.id?{...task,...draft}:task)}
+    setAnnouncement(`${draft.title} agregada`);return [...current,{...draft,id:`task-${Date.now()}`,color:assigneeColors[current.length%assigneeColors.length]}];
+  });
+  const requestDelete=(task:Task)=>{setDialogOpen(false);setDeleteCandidate(task)};
+  const deleteTask=()=>{if(!deleteCandidate)return;setTasks(current=>current.filter(task=>task.id!==deleteCandidate.id));setAnnouncement(`${deleteCandidate.title} eliminada`);setDeleteCandidate(null);setEditingTask(null)};
   return <div className="project-activity">
-    <header className="project-activity__header"><div><p className="admin-kicker">// OPERACIONES</p><h2>Actividad del proyecto</h2><p>Una vista simple del ritmo del sitio y las tareas del equipo.</p></div><button type="button" className="admin-button admin-button--primary" onClick={()=>setDialogOpen(true)}>Agregar tarea</button></header>
+    <header className="project-activity__header"><div><p className="admin-kicker">// OPERACIONES</p><h2>Actividad del proyecto</h2><p>Una vista simple del ritmo del sitio y las tareas del equipo.</p></div><button type="button" className="admin-button admin-button--primary" onClick={openNewTask}>Agregar tarea</button></header>
     {analyticsError&&<aside className="project-sample-note">{analyticsError}</aside>}
     <section className="project-metrics" aria-label="Métricas reales">
       <article><div><p>Visitas al sitio <span>(7 días)</span></p><strong>{analytics?.total_visits.toLocaleString("es")??"—"}</strong><small>{analytics ? `${analytics.visit_change_percent>=0?"+" : ""}${analytics.visit_change_percent}% vs. semana anterior` : "Cargando estadísticas…"}</small></div><TrendChart id="visits" line="M4 62 C14 55 22 45 33 48 S48 67 60 57 S74 35 86 39 S100 48 111 30 S129 19 140 24 S151 17 156 12" area="M4 62 C14 55 22 45 33 48 S48 67 60 57 S74 35 86 39 S100 48 111 30 S129 19 140 24 S151 17 156 12 L156 72 L4 72 Z" label="Visitas registradas durante los últimos siete días" formatValue={ratio=>String(Math.round(ratio*(analytics?.total_visits??0)))} ticks={["Lun","Mié","Vie","Dom"]}/></article>
       <article><div><p>Cambios publicados <span>este mes</span></p><strong>{analytics?.published_changes_month??"—"}</strong><small>{analytics?.published_changes_week??0} durante esta semana · {analytics?.open_tasks??0} tareas abiertas</small></div><TrendChart id="changes" line="M4 64 C16 64 22 59 32 59 S48 51 58 53 S72 42 82 43 S96 31 106 33 S121 25 131 26 S145 16 156 17" area="M4 64 C16 64 22 59 32 59 S48 51 58 53 S72 42 82 43 S96 31 106 33 S121 25 131 26 S145 16 156 17 L156 72 L4 72 Z" label="Cambios publicados durante el mes" formatValue={ratio=>String(Math.round(ratio*(analytics?.published_changes_month??0)))} ticks={["1","10","20","30"]}/></article>
       <article><div><p>Tiempo desde la última publicación</p><strong>{analytics?.last_published_at ? `${Math.max(0,Math.floor((Date.now()-new Date(analytics.last_published_at).getTime())/3600000))} h` : "Sin publicaciones"}</strong><small>{analytics?.last_published_at ? new Date(analytics.last_published_at).toLocaleString("es") : "Todavía no hay cambios registrados"}</small></div><TrendChart id="publish-time" line="M4 25 C14 25 21 31 31 29 S47 20 58 31 S73 48 84 43 S99 34 109 44 S124 59 135 53 S149 43 156 49" area="M4 25 C14 25 21 31 31 29 S47 20 58 31 S73 48 84 43 S99 34 109 44 S124 59 135 53 S149 43 156 49 L156 72 L4 72 Z" label="Tiempo desde la última publicación" formatValue={ratio=>`${(ratio*24).toFixed(1)}h`} ticks={["09h","12h","15h","Ahora"]}/></article>
     </section>
-    <section className="project-board" aria-labelledby="project-board-title"><div className="project-board__heading"><div><p className="admin-kicker">// FLUJO DE TRABAJO</p><h2 id="project-board-title">Tablero del proyecto</h2></div><p>Arrastra las tarjetas o usa ← y → cuando tengan el foco.</p></div>
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}><div className="project-columns">{columns.map(column=><KanbanColumn key={column.id} column={column} tasks={tasks.filter(task=>task.column===column.id)} onMove={moveWithArrow}/>)}</div></DndContext>
+    <section className="project-board" aria-labelledby="project-board-title"><div className="project-board__heading"><div><p className="admin-kicker">// FLUJO DE TRABAJO</p><h2 id="project-board-title">Tablero del proyecto</h2></div><p>Toca una tarjeta para editarla o eliminarla. También puedes arrastrarla entre columnas.</p></div>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}><div className="project-columns">{columns.map(column=><KanbanColumn key={column.id} column={column} tasks={tasks.filter(task=>task.column===column.id)} onMove={moveWithArrow} onEdit={openEditTask}/>)}</div></DndContext>
     </section>
     <p className="sr-only" aria-live="polite">{announcement}</p>
-    <AddTaskDialog open={dialogOpen} onClose={()=>setDialogOpen(false)} onAdd={addTask}/>
+    <TaskDialog open={dialogOpen} task={editingTask} onClose={()=>setDialogOpen(false)} onSave={saveTask} onRequestDelete={requestDelete}/>
+    <ConfirmDialog open={Boolean(deleteCandidate)} title="Eliminar tarea" description={deleteCandidate?`Se eliminará “${deleteCandidate.title}”. Esta acción no se puede deshacer.`:""} confirmLabel="Eliminar" danger onConfirm={deleteTask} onClose={()=>setDeleteCandidate(null)}/>
   </div>;
 }
