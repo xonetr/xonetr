@@ -38,6 +38,57 @@ if [[ ! -f backend/.env ]]; then
   fi
 fi
 
+PUBLISH_ROOT="${PUBLISH_ROOT:-/var/www/xonetr}"
+
+publish_frontend_build() {
+  # El nginx del host sirve el front desde PUBLISH_ROOT, no desde el contenedor.
+  # Sin este paso el build nuevo queda solo en el contenedor y la web pública sigue vieja.
+  if [[ ! -d "$PUBLISH_ROOT" ]]; then
+    echo "ℹ️  No existe ${PUBLISH_ROOT}; se salta la publicación estática (desarrollo local)."
+    return 0
+  fi
+
+  if ! command -v sudo >/dev/null 2>&1 || ! command -v rsync >/dev/null 2>&1; then
+    echo "❌ Se necesitan sudo y rsync para publicar el build en ${PUBLISH_ROOT}."
+    return 1
+  fi
+
+  local container_id tmp_dir
+  container_id="$(docker compose ps -q frontend | head -n 1)"
+
+  if [[ -z "$container_id" ]]; then
+    echo "❌ No se encontró el contenedor frontend para publicar el build."
+    return 1
+  fi
+
+  tmp_dir="$(mktemp -d)"
+  if ! docker cp "${container_id}:/usr/share/nginx/html/." "$tmp_dir/"; then
+    echo "❌ No se pudo copiar el build desde el contenedor frontend."
+    rm -rf "$tmp_dir"
+    return 1
+  fi
+
+  if [[ ! -f "$tmp_dir/index.html" || ! -d "$tmp_dir/assets" ]]; then
+    echo "❌ El build copiado no contiene index.html y assets/."
+    rm -rf "$tmp_dir"
+    return 1
+  fi
+
+  echo "📤 Publicando build en ${PUBLISH_ROOT}..."
+  sudo install -d -o http -g http -m 755 "$PUBLISH_ROOT/assets"
+  sudo rsync -a --delete --chown=http:http "$tmp_dir/assets/" "$PUBLISH_ROOT/assets/"
+  sudo install -o http -g http -m 644 "$tmp_dir/index.html" "$PUBLISH_ROOT/index.html"
+  rm -rf "$tmp_dir"
+
+  if sudo nginx -t >/dev/null 2>&1; then
+    if ! sudo systemctl reload nginx; then
+      echo "⚠️  No se pudo recargar nginx; los archivos ya están publicados."
+    fi
+  else
+    echo "⚠️  nginx -t falló; no se recargó nginx (revisá la configuración)."
+  fi
+}
+
 case "$ACTION" in
   up)
     echo "🚀 Construyendo y levantando servicios..."
@@ -84,6 +135,9 @@ case "$ACTION" in
       fi
       exit 1
     fi
+
+    publish_frontend_build
+
     echo
     echo "🌐 Frontend: http://localhost:8010"
     echo "🔧 Backend:  http://localhost:${BACKEND_HOST_PORT}/api/health"

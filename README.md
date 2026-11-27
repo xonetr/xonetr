@@ -18,6 +18,8 @@ cp backend/.env.example backend/.env
 ./scripts/deploy.sh up
 ```
 
+El script actualiza el repo, reconstruye las imágenes y publica el build estático en `/var/www/xonetr` (el `root` que usa nginx para el host). Podés cambiar esa ruta con la variable `PUBLISH_ROOT`.
+
 La app queda accesible por:
 
 - http://xonetr.sytes.net:8010
